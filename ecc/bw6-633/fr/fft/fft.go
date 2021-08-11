@@ -167,152 +167,41 @@ func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation, coset ui
 
 func kerDIF32(a []fr.Element, twiddles [][]fr.Element, stage int) {
 
-	var t fr.Element
+	butterfly0(&a[0], &a[8])
+	butterfly2(&a[1], &a[9], &twiddles[stage+0][1])
+	butterfly2(&a[2], &a[10], &twiddles[stage+0][2])
+	butterfly2(&a[3], &a[11], &twiddles[stage+0][3])
+	butterfly2(&a[4], &a[12], &twiddles[stage+0][4])
+	butterfly2(&a[5], &a[13], &twiddles[stage+0][5])
+	butterfly2(&a[6], &a[14], &twiddles[stage+0][6])
+	butterfly2(&a[7], &a[15], &twiddles[stage+0][7])
 
-	t = a[0]
-	a[0].Add(&a[0], &a[8])
-	a[8].Sub(&t, &a[8])
+	butterfly0(&a[0], &a[4])
+	butterfly2(&a[1], &a[5], &twiddles[stage+1][1])
+	butterfly2(&a[2], &a[6], &twiddles[stage+1][2])
+	butterfly2(&a[3], &a[7], &twiddles[stage+1][3])
+	butterfly0(&a[8], &a[12])
+	butterfly2(&a[9], &a[13], &twiddles[stage+1][1])
+	butterfly2(&a[10], &a[14], &twiddles[stage+1][2])
+	butterfly2(&a[11], &a[15], &twiddles[stage+1][3])
 
-	t = a[1]
-	a[1].Add(&a[1], &a[9])
-	a[9].Sub(&t, &a[9])
-	a[9].Mul(&a[9], &twiddles[stage+0][1])
+	butterfly0(&a[0], &a[2])
+	butterfly2(&a[1], &a[3], &twiddles[stage+2][1])
+	butterfly0(&a[4], &a[6])
+	butterfly2(&a[5], &a[7], &twiddles[stage+2][1])
+	butterfly0(&a[8], &a[10])
+	butterfly2(&a[9], &a[11], &twiddles[stage+2][1])
+	butterfly0(&a[12], &a[14])
+	butterfly2(&a[13], &a[15], &twiddles[stage+2][1])
 
-	t = a[2]
-	a[2].Add(&a[2], &a[10])
-	a[10].Sub(&t, &a[10])
-	a[10].Mul(&a[10], &twiddles[stage+0][2])
-
-	t = a[3]
-	a[3].Add(&a[3], &a[11])
-	a[11].Sub(&t, &a[11])
-	a[11].Mul(&a[11], &twiddles[stage+0][3])
-
-	t = a[4]
-	a[4].Add(&a[4], &a[12])
-	a[12].Sub(&t, &a[12])
-	a[12].Mul(&a[12], &twiddles[stage+0][4])
-
-	t = a[5]
-	a[5].Add(&a[5], &a[13])
-	a[13].Sub(&t, &a[13])
-	a[13].Mul(&a[13], &twiddles[stage+0][5])
-
-	t = a[6]
-	a[6].Add(&a[6], &a[14])
-	a[14].Sub(&t, &a[14])
-	a[14].Mul(&a[14], &twiddles[stage+0][6])
-
-	t = a[7]
-	a[7].Add(&a[7], &a[15])
-	a[15].Sub(&t, &a[15])
-	a[15].Mul(&a[15], &twiddles[stage+0][7])
-
-	t = a[0]
-	a[0].Add(&a[0], &a[4])
-	a[4].Sub(&t, &a[4])
-
-	t = a[1]
-	a[1].Add(&a[1], &a[5])
-	a[5].Sub(&t, &a[5])
-	a[5].Mul(&a[5], &twiddles[stage+1][1])
-
-	t = a[2]
-	a[2].Add(&a[2], &a[6])
-	a[6].Sub(&t, &a[6])
-	a[6].Mul(&a[6], &twiddles[stage+1][2])
-
-	t = a[3]
-	a[3].Add(&a[3], &a[7])
-	a[7].Sub(&t, &a[7])
-	a[7].Mul(&a[7], &twiddles[stage+1][3])
-
-	t = a[8]
-	a[8].Add(&a[8], &a[12])
-	a[12].Sub(&t, &a[12])
-
-	t = a[9]
-	a[9].Add(&a[9], &a[13])
-	a[13].Sub(&t, &a[13])
-	a[13].Mul(&a[13], &twiddles[stage+1][1])
-
-	t = a[10]
-	a[10].Add(&a[10], &a[14])
-	a[14].Sub(&t, &a[14])
-	a[14].Mul(&a[14], &twiddles[stage+1][2])
-
-	t = a[11]
-	a[11].Add(&a[11], &a[15])
-	a[15].Sub(&t, &a[15])
-	a[15].Mul(&a[15], &twiddles[stage+1][3])
-
-	t = a[0]
-	a[0].Add(&a[0], &a[2])
-	a[2].Sub(&t, &a[2])
-
-	t = a[1]
-	a[1].Add(&a[1], &a[3])
-	a[3].Sub(&t, &a[3])
-	a[3].Mul(&a[3], &twiddles[stage+2][1])
-
-	t = a[4]
-	a[4].Add(&a[4], &a[6])
-	a[6].Sub(&t, &a[6])
-
-	t = a[5]
-	a[5].Add(&a[5], &a[7])
-	a[7].Sub(&t, &a[7])
-	a[7].Mul(&a[7], &twiddles[stage+2][1])
-
-	t = a[8]
-	a[8].Add(&a[8], &a[10])
-	a[10].Sub(&t, &a[10])
-
-	t = a[9]
-	a[9].Add(&a[9], &a[11])
-	a[11].Sub(&t, &a[11])
-	a[11].Mul(&a[11], &twiddles[stage+2][1])
-
-	t = a[12]
-	a[12].Add(&a[12], &a[14])
-	a[14].Sub(&t, &a[14])
-
-	t = a[13]
-	a[13].Add(&a[13], &a[15])
-	a[15].Sub(&t, &a[15])
-	a[15].Mul(&a[15], &twiddles[stage+2][1])
-
-	t = a[0]
-	a[0].Add(&a[0], &a[1])
-	a[1].Sub(&t, &a[1])
-
-	t = a[2]
-	a[2].Add(&a[2], &a[3])
-	a[3].Sub(&t, &a[3])
-
-	t = a[4]
-	a[4].Add(&a[4], &a[5])
-	a[5].Sub(&t, &a[5])
-
-	t = a[6]
-	a[6].Add(&a[6], &a[7])
-	a[7].Sub(&t, &a[7])
-
-	t = a[8]
-	a[8].Add(&a[8], &a[9])
-	a[9].Sub(&t, &a[9])
-
-	t = a[10]
-	a[10].Add(&a[10], &a[11])
-	a[11].Sub(&t, &a[11])
-
-	t = a[12]
-	a[12].Add(&a[12], &a[13])
-	a[13].Sub(&t, &a[13])
-
-	t = a[14]
-	a[14].Add(&a[14], &a[15])
-	a[15].Sub(&t, &a[15])
+	butterfly0(&a[0], &a[1])
+	butterfly0(&a[2], &a[3])
+	butterfly0(&a[4], &a[5])
+	butterfly0(&a[6], &a[7])
+	butterfly0(&a[8], &a[9])
+	butterfly0(&a[10], &a[11])
+	butterfly0(&a[12], &a[13])
+	butterfly0(&a[14], &a[15])
 
 }
 
@@ -337,31 +226,20 @@ func difFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDon
 		// 1 << stage == estimated used CPUs
 		numCPU := runtime.NumCPU() / (1 << (stage))
 		parallel.Execute(m, func(start, end int) {
-			var t fr.Element
+			if start == 0 {
+				butterfly0(&a[0], &a[m])
+				start++
+			}
 			for i := start; i < end; i++ {
-				t = a[i]
-				a[i].Add(&a[i], &a[i+m])
-
-				a[i+m].
-					Sub(&t, &a[i+m]).
-					Mul(&a[i+m], &twiddles[stage][i])
+				butterfly2(&a[i], &a[i+m], &twiddles[stage][i])
 			}
 		}, numCPU)
 	} else {
-		var t fr.Element
 
 		// i == 0
-		t = a[0]
-		a[0].Add(&a[0], &a[m])
-		a[m].Sub(&t, &a[m])
-
+		butterfly0(&a[0], &a[m])
 		for i := 1; i < m; i++ {
-			t = a[i]
-			a[i].Add(&a[i], &a[i+m])
-
-			a[i+m].
-				Sub(&t, &a[i+m]).
-				Mul(&a[i+m], &twiddles[stage][i])
+			butterfly2(&a[i], &a[i+m], &twiddles[stage][i])
 		}
 	}
 
@@ -413,28 +291,19 @@ func ditFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDon
 		// 1 << stage == estimated used CPUs
 		numCPU := runtime.NumCPU() / (1 << (stage))
 		parallel.Execute(m, func(start, end int) {
-			var t, tm fr.Element
+			if start == 0 {
+				butterfly0(&a[0], &a[m])
+				start++
+			}
 			for k := start; k < end; k++ {
-				t = a[k]
-				tm.Mul(&a[k+m], &twiddles[stage][k])
-				a[k].Add(&a[k], &tm)
-				a[k+m].Sub(&t, &tm)
+				butterfly1(&a[k], &a[k+m], &twiddles[stage][k])
 			}
 		}, numCPU)
 
 	} else {
-		var t, tm fr.Element
-		// k == 0
-		// wPow == 1
-		t = a[0]
-		a[0].Add(&a[0], &a[m])
-		a[m].Sub(&t, &a[m])
-
+		butterfly0(&a[0], &a[m])
 		for k := 1; k < m; k++ {
-			t = a[k]
-			tm.Mul(&a[k+m], &twiddles[stage][k])
-			a[k].Add(&a[k], &tm)
-			a[k+m].Sub(&t, &tm)
+			butterfly1(&a[k], &a[k+m], &twiddles[stage][k])
 		}
 	}
 }
@@ -604,23 +473,23 @@ func innerSplitFFT1(a []fr.Element, twiddles []fr.Element, tIndex int, skipLast 
 	n := len(a)
 	if n == 1 || (skipLast && n == 2) {
 		return
+	} else if n == 16 && !skipLast {
+		if tIndex == 0 {
+			kerDIFSplit16Zero(a, twiddles)
+		} else {
+			kerDIFSplit16(a, twiddles, tIndex)
+		}
+		return
 	}
 	m := n >> 1
 
-	var t, tm fr.Element
-
 	if tIndex == 0 {
 		for i := 0; i < m; i++ {
-			t = a[i]
-			a[i].Add(&t, &a[i+m])
-			a[i+m].Sub(&t, &a[i+m])
+			butterfly0(&a[i], &a[i+m])
 		}
 	} else {
 		for i := 0; i < m; i++ {
-			t = a[i]
-			tm.Mul(&a[i+m], &twiddles[tIndex])
-			a[i].Add(&t, &tm)
-			a[i+m].Sub(&t, &tm)
+			butterfly1(&a[i], &a[i+m], &twiddles[tIndex])
 		}
 	}
 	tIndex <<= 1
@@ -632,69 +501,106 @@ func innerSplitFFT1(a []fr.Element, twiddles []fr.Element, tIndex int, skipLast 
 
 }
 
-const MAX_LOOP = 128
+func kerDIFSplit16(a []fr.Element, twiddles []fr.Element, tIndex int) {
 
-func innerSplitFFT3(a []fr.Element, twiddles []fr.Element, count, stride, offset int) {
-	n := len(a) / stride
+	butterfly1(&a[0], &a[8], &twiddles[tIndex+0])
+	butterfly1(&a[1], &a[9], &twiddles[tIndex+0])
+	butterfly1(&a[2], &a[10], &twiddles[tIndex+0])
+	butterfly1(&a[3], &a[11], &twiddles[tIndex+0])
+	butterfly1(&a[4], &a[12], &twiddles[tIndex+0])
+	butterfly1(&a[5], &a[13], &twiddles[tIndex+0])
+	butterfly1(&a[6], &a[14], &twiddles[tIndex+0])
+	butterfly1(&a[7], &a[15], &twiddles[tIndex+0])
+	tIndex <<= 1
 
-	if n > 2 {
-		if stride == count && count < MAX_LOOP {
-			innerSplitFFT3(a, twiddles, 2*count, stride<<1, offset)
-		} else {
-			innerSplitFFT3(a, twiddles, count, stride<<1, offset)
-			innerSplitFFT3(a, twiddles, count, stride<<1, offset+stride)
-		}
-	}
+	butterfly1(&a[0], &a[4], &twiddles[tIndex+0])
+	butterfly1(&a[1], &a[5], &twiddles[tIndex+0])
+	butterfly1(&a[2], &a[6], &twiddles[tIndex+0])
+	butterfly1(&a[3], &a[7], &twiddles[tIndex+0])
+	butterfly1(&a[8], &a[12], &twiddles[tIndex+1])
+	butterfly1(&a[9], &a[13], &twiddles[tIndex+1])
+	butterfly1(&a[10], &a[14], &twiddles[tIndex+1])
+	butterfly1(&a[11], &a[15], &twiddles[tIndex+1])
+	tIndex <<= 1
 
-	var t fr.Element
+	butterfly1(&a[0], &a[2], &twiddles[tIndex+0])
+	butterfly1(&a[1], &a[3], &twiddles[tIndex+0])
+	butterfly1(&a[4], &a[6], &twiddles[tIndex+1])
+	butterfly1(&a[5], &a[7], &twiddles[tIndex+1])
+	butterfly1(&a[8], &a[10], &twiddles[tIndex+2])
+	butterfly1(&a[9], &a[11], &twiddles[tIndex+2])
+	butterfly1(&a[12], &a[14], &twiddles[tIndex+3])
+	butterfly1(&a[13], &a[15], &twiddles[tIndex+3])
+	tIndex <<= 1
 
-	for o := offset; o < offset+count; o++ {
-		t = a[o]
-		a[o].Add(&t, &a[o+stride])
-		a[o+stride].Sub(&t, &a[o+stride])
-	}
-
-	lastOffset := offset + n*stride
-
-	i := 1
-	for o := offset + 2*stride; o < lastOffset; o += 2 * stride {
-		for j := o; j < o+count; j++ {
-			t = a[j]
-			a[j+stride].Mul(&a[j+stride], &twiddles[i])
-			a[j].Add(&t, &a[j+stride])
-			a[j+stride].Sub(&t, &a[j+stride])
-		}
-		i++
-	}
+	butterfly1(&a[0], &a[1], &twiddles[tIndex+0])
+	butterfly1(&a[2], &a[3], &twiddles[tIndex+1])
+	butterfly1(&a[4], &a[5], &twiddles[tIndex+2])
+	butterfly1(&a[6], &a[7], &twiddles[tIndex+3])
+	butterfly1(&a[8], &a[9], &twiddles[tIndex+4])
+	butterfly1(&a[10], &a[11], &twiddles[tIndex+5])
+	butterfly1(&a[12], &a[13], &twiddles[tIndex+6])
+	butterfly1(&a[14], &a[15], &twiddles[tIndex+7])
+	tIndex <<= 1
 
 }
 
-func innerSplitFFT2(a []fr.Element, twiddles []fr.Element, stride int) {
-	n := len(a) / stride
-	two_stride := stride << 1
-	if n > 2 {
-		innerSplitFFT2(a, twiddles, two_stride)
-	}
+func kerDIFSplit16Zero(a []fr.Element, twiddles []fr.Element) {
 
-	var t, tm fr.Element
+	butterfly0(&a[0], &a[8])
+	butterfly0(&a[1], &a[9])
+	butterfly0(&a[2], &a[10])
+	butterfly0(&a[3], &a[11])
+	butterfly0(&a[4], &a[12])
+	butterfly0(&a[5], &a[13])
+	butterfly0(&a[6], &a[14])
+	butterfly0(&a[7], &a[15])
 
-	// process a[:2m]
-	for i := 0; i < stride; i++ {
-		t = a[i]
-		a[i].Add(&t, &a[i+stride])
-		a[i+stride].Sub(&t, &a[i+stride])
-	}
+	butterfly0(&a[0], &a[4])
+	butterfly0(&a[1], &a[5])
+	butterfly0(&a[2], &a[6])
+	butterfly0(&a[3], &a[7])
+	butterfly1(&a[8], &a[12], &twiddles[1])
+	butterfly1(&a[9], &a[13], &twiddles[1])
+	butterfly1(&a[10], &a[14], &twiddles[1])
+	butterfly1(&a[11], &a[15], &twiddles[1])
 
-	twiddleIndex := 1
-	// process a[2m:4m], a[4m:6m], ...
-	for startBlock := two_stride; startBlock < len(a)-stride; startBlock += two_stride {
-		for j := startBlock; j < startBlock+stride; j++ {
-			t = a[j]
-			tm.Mul(&a[j+stride], &twiddles[twiddleIndex])
-			a[j].Add(&t, &tm)
-			a[j+stride].Sub(&t, &tm)
-		}
-		twiddleIndex++
-	}
+	butterfly0(&a[0], &a[2])
+	butterfly0(&a[1], &a[3])
+	butterfly1(&a[4], &a[6], &twiddles[1])
+	butterfly1(&a[5], &a[7], &twiddles[1])
+	butterfly1(&a[8], &a[10], &twiddles[2])
+	butterfly1(&a[9], &a[11], &twiddles[2])
+	butterfly1(&a[12], &a[14], &twiddles[3])
+	butterfly1(&a[13], &a[15], &twiddles[3])
 
+	butterfly0(&a[0], &a[1])
+	butterfly1(&a[2], &a[3], &twiddles[1])
+	butterfly1(&a[4], &a[5], &twiddles[2])
+	butterfly1(&a[6], &a[7], &twiddles[3])
+	butterfly1(&a[8], &a[9], &twiddles[4])
+	butterfly1(&a[10], &a[11], &twiddles[5])
+	butterfly1(&a[12], &a[13], &twiddles[6])
+	butterfly1(&a[14], &a[15], &twiddles[7])
+
+}
+
+func butterfly0(a, b *fr.Element) {
+	t := *a
+	a.Add(a, b)
+	b.Sub(&t, b)
+}
+
+func butterfly1(a, b, c *fr.Element) {
+	var t1 fr.Element
+	t0 := *a
+	t1.Mul(b, c)
+	a.Add(a, &t1)
+	b.Sub(&t0, &t1)
+}
+
+func butterfly2(a, b, c *fr.Element) {
+	t0 := *a
+	a.Add(a, b)
+	b.Sub(&t0, b).Mul(b, c)
 }

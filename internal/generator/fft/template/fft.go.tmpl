@@ -151,29 +151,26 @@ func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation, coset ui
 func kerDIF32(a []fr.Element, twiddles [][]fr.Element, stage int) {
 	
 	{{ $n := 16}}
-	var t fr.Element
 	{{ $m := div $n 2}}
 	{{ $split := 1}}
 	{{- range $step := iterate 4}} 
 	{{/* // we have 5 steps, n = 32, n = 16... n=2 */}}
-		{{$offset := 0}}
+		{{- $offset := 0}}
 		{{- range $s := iterate $split}}
 			{{- range $i := iterate $m}}
-				{{$j := add $i $offset}}
-				{{$k := add $j $m}}
-				t = a[{{$j}}]
-				a[{{$j}}].Add(&a[{{$j}}], &a[{{$k}}])
-				a[{{$k}}].Sub(&t, &a[{{$k}}])
-				{{- if ne $i 0}}
-					a[{{$k}}].Mul(&a[{{$k}}], &twiddles[stage+{{$step}}][{{$i}}])
+				{{- $j := add $i $offset}}
+				{{- $k := add $j $m}}
+				{{- if eq $i 0}}
+					butterfly0(&a[{{$j}}], &a[{{$k}}])
+				{{- else}}
+					butterfly2(&a[{{$j}}], &a[{{$k}}], &twiddles[stage+{{$step}}][{{$i}}])
 				{{- end}}
 			{{- end}}
-			{{$offset = add $offset $n}}
+			{{- $offset = add $offset $n}}
 		{{- end}}
-		{{ $n = div $n 2}}
-		{{ $m = div $n 2}}
-		{{ $split = mul $split 2}}
-		{{/* stage++ */}}
+		{{- $n = div $n 2}}
+		{{- $m = div $n 2}}
+		{{- $split = mul $split 2}}
 	{{- end}}
 	
 }
@@ -199,31 +196,20 @@ func difFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDon
 		// 1 << stage == estimated used CPUs
 		numCPU := runtime.NumCPU() / (1 << (stage))
 		parallel.Execute(m, func(start, end int) {
-			var t fr.Element
+			if start == 0 {
+				butterfly0(&a[0], &a[m])
+				start++
+			}
 			for i := start; i < end; i++ {
-				t = a[i]
-				a[i].Add(&a[i], &a[i+m])
-
-				a[i+m].
-					Sub(&t, &a[i+m]).
-					Mul(&a[i+m], &twiddles[stage][i])
+				butterfly2(&a[i], &a[i+m], &twiddles[stage][i])
 			}
 		}, numCPU)
 	} else {
-		var t fr.Element
 
 		// i == 0
-		t = a[0]
-		a[0].Add(&a[0], &a[m])
-		a[m].Sub(&t, &a[m])
-
+		butterfly0(&a[0], &a[m])
 		for i := 1; i < m; i++ {
-			t = a[i]
-			a[i].Add(&a[i], &a[i+m])
-
-			a[i+m].
-				Sub(&t, &a[i+m]).
-				Mul(&a[i+m], &twiddles[stage][i])
+			butterfly2(&a[i], &a[i+m], &twiddles[stage][i])
 		}
 	}
 
@@ -275,28 +261,19 @@ func ditFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDon
 		// 1 << stage == estimated used CPUs
 		numCPU := runtime.NumCPU() / (1 << (stage))
 		parallel.Execute(m, func(start, end int) {
-			var t, tm fr.Element
+			if start == 0 {
+				butterfly0(&a[0], &a[m])
+				start++
+			}
 			for k := start; k < end; k++ {
-				t = a[k]
-				tm.Mul(&a[k+m], &twiddles[stage][k])
-				a[k].Add(&a[k], &tm)
-				a[k+m].Sub(&t, &tm)
+				butterfly1(&a[k], &a[k+m],&twiddles[stage][k])
 			}
 		}, numCPU)
 
 	} else {
-		var t, tm fr.Element
-		// k == 0
-		// wPow == 1
-		t = a[0]
-		a[0].Add(&a[0], &a[m])
-		a[m].Sub(&t, &a[m])
-
+		butterfly0(&a[0], &a[m])
 		for k := 1; k < m; k++ {
-			t = a[k]
-			tm.Mul(&a[k+m], &twiddles[stage][k])
-			a[k].Add(&a[k], &tm)
-			a[k+m].Sub(&t, &tm)
+			butterfly1(&a[k], &a[k+m],&twiddles[stage][k])
 		}
 	}
 }
@@ -470,23 +447,23 @@ func innerSplitFFT1(a []fr.Element, twiddles []fr.Element, tIndex int, skipLast 
 	n := len(a)
 	if n == 1 || (skipLast && n == 2) {
 		return
+	} else if (n == 16 && !skipLast) {
+		if tIndex == 0 {
+			kerDIFSplit16Zero(a, twiddles)
+		} else {
+			kerDIFSplit16(a, twiddles , tIndex)
+		}
+		return 
 	}
 	m := n >> 1
 
-	var t, tm fr.Element
-
 	if tIndex == 0 {
 		for i := 0; i < m; i++ {
-			t = a[i]
-			a[i].Add(&t, &a[i+m])
-			a[i+m].Sub(&t, &a[i+m])
+			butterfly0(&a[i], &a[i+m])
 		}
 	} else {
 		for i := 0; i < m; i++ {
-			t = a[i]
-			tm.Mul(&a[i+m], &twiddles[tIndex])
-			a[i].Add(&t, &tm)
-			a[i+m].Sub(&t, &tm)
+			butterfly1(&a[i], &a[i+m], &twiddles[tIndex])
 		}
 	}
 	tIndex <<= 1
@@ -498,69 +475,79 @@ func innerSplitFFT1(a []fr.Element, twiddles []fr.Element, tIndex int, skipLast 
 
 }
 
-const MAX_LOOP = 128
 
-func innerSplitFFT3(a []fr.Element, twiddles []fr.Element, count, stride, offset int) {
-	n := len(a) / stride
 
-	if n > 2 {
-		if stride == count && count < MAX_LOOP {
-			innerSplitFFT3(a, twiddles, 2*count, stride<<1, offset)
-		} else {
-			innerSplitFFT3(a, twiddles, count, stride<<1, offset)
-			innerSplitFFT3(a, twiddles, count, stride<<1, offset+stride)
-		}
-	}
 
-	var t fr.Element
-
-	for o := offset; o < offset+count; o++ {
-		t = a[o]
-		a[o].Add(&t, &a[o+stride])
-		a[o+stride].Sub(&t, &a[o+stride])
-	}
-
-	lastOffset := offset + n*stride
-
-	i := 1
-	for o := offset + 2*stride; o < lastOffset; o += 2 * stride {
-		for j := o; j < o+count; j++ {
-			t = a[j]
-			a[j+stride].Mul(&a[j+stride], &twiddles[i])
-			a[j].Add(&t, &a[j+stride])
-			a[j+stride].Sub(&t, &a[j+stride])
-		}
-		i++
-	}
-
+func kerDIFSplit16(a []fr.Element, twiddles []fr.Element, tIndex int) {
+	{{- $n := 16}}
+	{{- $m := div $n 2}}
+	{{- $split := 1}}
+	{{- range $step := iterate 4}} 
+		{{/* // we have 5 steps, n = 32, n = 16... n=2 */}}
+		{{$offset := 0}}
+		{{- range $s := iterate $split}}
+			{{- range $i := iterate $m}}
+				{{- $j := add $i $offset}}
+				{{- $k := add $j $m}}
+				butterfly1(&a[{{$j}}], &a[{{$k}}], &twiddles[tIndex+{{$s}}])
+			{{- end}}
+			{{- $offset = add $offset $n}}
+		{{- end}}
+		tIndex <<= 1
+		{{- $n = div $n 2}}
+		{{- $m = div $n 2}}
+		{{- $split = mul $split 2}}
+	{{- end}}
+	
 }
 
-func innerSplitFFT2(a []fr.Element, twiddles []fr.Element, stride int) {
-	n := len(a) / stride
-	two_stride := stride << 1
-	if n > 2 {
-		innerSplitFFT2(a, twiddles, two_stride)
-	}
+func kerDIFSplit16Zero(a []fr.Element, twiddles []fr.Element) {
+	{{ $n := 16}}
+	{{ $m := div $n 2}}
+	{{ $split := 1}}
+	{{- range $step := iterate 4}} 
+		{{/* // we have 5 steps, n = 32, n = 16... n=2 */}}
+		{{$offset := 0}}
+		{{- range $s := iterate $split}}
+			{{- if eq 0 $s}}
+				{{- range $i := iterate $m}}
+					{{- $j := add $i $offset}}
+					{{- $k := add $j $m}}
+					butterfly0(&a[{{$j}}], &a[{{$k}}])
+				{{- end}}
+			{{- else}}
+				{{- range $i := iterate $m}}
+					{{- $j := add $i $offset}}
+					{{- $k := add $j $m}}
+					butterfly1(&a[{{$j}}], &a[{{$k}}], &twiddles[{{$s}}])
+				{{- end}}
+			{{- end}}
+			{{- $offset = add $offset $n}}
+		{{- end}}
+		{{- $n = div $n 2}}
+		{{- $m = div $n 2}}
+		{{- $split = mul $split 2}}
+	{{- end}}
+	
+}
 
-	var t, tm fr.Element
 
-	// process a[:2m]
-	for i := 0; i < stride; i++ {
-		t = a[i]
-		a[i].Add(&t, &a[i+stride])
-		a[i+stride].Sub(&t, &a[i+stride])
-	}
+func butterfly0(a, b *fr.Element) {
+	t := *a
+	a.Add(a, b)
+	b.Sub(&t, b)
+}
 
-	twiddleIndex := 1
-	// process a[2m:4m], a[4m:6m], ...
-	for startBlock := two_stride; startBlock < len(a)-stride; startBlock += two_stride {
-		for j := startBlock; j < startBlock+stride; j++ {
-			t = a[j]
-			tm.Mul(&a[j+stride], &twiddles[twiddleIndex])
-			a[j].Add(&t, &tm)
-			a[j+stride].Sub(&t, &tm)
-		}
-		twiddleIndex++
-	}
+func butterfly1(a, b, c *fr.Element) {
+	var t1 fr.Element 
+	t0 := *a 
+	t1.Mul(b, c)
+	a.Add(a, &t1)
+	b.Sub(&t0, &t1)
+}
 
+func butterfly2(a, b, c *fr.Element) {
+	t0 := *a 
+	a.Add(a, b)
+	b.Sub(&t0, b).Mul(b, c)
 }

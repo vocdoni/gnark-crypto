@@ -402,15 +402,16 @@ func TestTransposeEq(t *testing.T) {
 }
 
 func BenchmarkFFTSplit(b *testing.B) {
-	const mm = 26
+	const mm = 24
 	const maxSize = 1 << mm
 
 	pol := make([]fr.Element, maxSize)
-	for i := uint64(0); i < maxSize; i++ {
-		pol[i].SetRandom()
+	pol[0].SetRandom()
+	for i := 1; i < maxSize; i++ {
+		pol[i] = pol[i-1]
 	}
 
-	for i := 6; i < mm; i++ {
+	for i := 6; i < mm; i += 2 { // TODO do the odds ones too with rect matrixes
 		sizeDomain := 1 << i
 		_pol := make([]fr.Element, sizeDomain)
 		domain := NewDomain(uint64(sizeDomain), 0, false)
