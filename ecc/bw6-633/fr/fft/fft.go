@@ -32,6 +32,7 @@ type Decimation uint8
 const (
 	DIT Decimation = iota
 	DIF
+	SPLITDIF
 )
 
 // parallelize threshold for a single butterfly op, if the fft stage is not parallelized already
@@ -89,6 +90,8 @@ func (domain *Domain) FFT(a []fr.Element, decimation Decimation, coset uint64) {
 	switch decimation {
 	case DIF:
 		difFFT(a, domain.Twiddles, 0, maxSplits, nil)
+	case SPLITDIF:
+		domain.difFFTSplit(a)
 	case DIT:
 		ditFFT(a, domain.Twiddles, 0, maxSplits, nil)
 	default:
@@ -162,6 +165,157 @@ func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation, coset ui
 
 }
 
+func kerDIF32(a []fr.Element, twiddles [][]fr.Element, stage int) {
+
+	var t fr.Element
+
+	t = a[0]
+	a[0].Add(&a[0], &a[8])
+	a[8].Sub(&t, &a[8])
+
+	t = a[1]
+	a[1].Add(&a[1], &a[9])
+	a[9].Sub(&t, &a[9])
+	a[9].Mul(&a[9], &twiddles[stage+0][1])
+
+	t = a[2]
+	a[2].Add(&a[2], &a[10])
+	a[10].Sub(&t, &a[10])
+	a[10].Mul(&a[10], &twiddles[stage+0][2])
+
+	t = a[3]
+	a[3].Add(&a[3], &a[11])
+	a[11].Sub(&t, &a[11])
+	a[11].Mul(&a[11], &twiddles[stage+0][3])
+
+	t = a[4]
+	a[4].Add(&a[4], &a[12])
+	a[12].Sub(&t, &a[12])
+	a[12].Mul(&a[12], &twiddles[stage+0][4])
+
+	t = a[5]
+	a[5].Add(&a[5], &a[13])
+	a[13].Sub(&t, &a[13])
+	a[13].Mul(&a[13], &twiddles[stage+0][5])
+
+	t = a[6]
+	a[6].Add(&a[6], &a[14])
+	a[14].Sub(&t, &a[14])
+	a[14].Mul(&a[14], &twiddles[stage+0][6])
+
+	t = a[7]
+	a[7].Add(&a[7], &a[15])
+	a[15].Sub(&t, &a[15])
+	a[15].Mul(&a[15], &twiddles[stage+0][7])
+
+	t = a[0]
+	a[0].Add(&a[0], &a[4])
+	a[4].Sub(&t, &a[4])
+
+	t = a[1]
+	a[1].Add(&a[1], &a[5])
+	a[5].Sub(&t, &a[5])
+	a[5].Mul(&a[5], &twiddles[stage+1][1])
+
+	t = a[2]
+	a[2].Add(&a[2], &a[6])
+	a[6].Sub(&t, &a[6])
+	a[6].Mul(&a[6], &twiddles[stage+1][2])
+
+	t = a[3]
+	a[3].Add(&a[3], &a[7])
+	a[7].Sub(&t, &a[7])
+	a[7].Mul(&a[7], &twiddles[stage+1][3])
+
+	t = a[8]
+	a[8].Add(&a[8], &a[12])
+	a[12].Sub(&t, &a[12])
+
+	t = a[9]
+	a[9].Add(&a[9], &a[13])
+	a[13].Sub(&t, &a[13])
+	a[13].Mul(&a[13], &twiddles[stage+1][1])
+
+	t = a[10]
+	a[10].Add(&a[10], &a[14])
+	a[14].Sub(&t, &a[14])
+	a[14].Mul(&a[14], &twiddles[stage+1][2])
+
+	t = a[11]
+	a[11].Add(&a[11], &a[15])
+	a[15].Sub(&t, &a[15])
+	a[15].Mul(&a[15], &twiddles[stage+1][3])
+
+	t = a[0]
+	a[0].Add(&a[0], &a[2])
+	a[2].Sub(&t, &a[2])
+
+	t = a[1]
+	a[1].Add(&a[1], &a[3])
+	a[3].Sub(&t, &a[3])
+	a[3].Mul(&a[3], &twiddles[stage+2][1])
+
+	t = a[4]
+	a[4].Add(&a[4], &a[6])
+	a[6].Sub(&t, &a[6])
+
+	t = a[5]
+	a[5].Add(&a[5], &a[7])
+	a[7].Sub(&t, &a[7])
+	a[7].Mul(&a[7], &twiddles[stage+2][1])
+
+	t = a[8]
+	a[8].Add(&a[8], &a[10])
+	a[10].Sub(&t, &a[10])
+
+	t = a[9]
+	a[9].Add(&a[9], &a[11])
+	a[11].Sub(&t, &a[11])
+	a[11].Mul(&a[11], &twiddles[stage+2][1])
+
+	t = a[12]
+	a[12].Add(&a[12], &a[14])
+	a[14].Sub(&t, &a[14])
+
+	t = a[13]
+	a[13].Add(&a[13], &a[15])
+	a[15].Sub(&t, &a[15])
+	a[15].Mul(&a[15], &twiddles[stage+2][1])
+
+	t = a[0]
+	a[0].Add(&a[0], &a[1])
+	a[1].Sub(&t, &a[1])
+
+	t = a[2]
+	a[2].Add(&a[2], &a[3])
+	a[3].Sub(&t, &a[3])
+
+	t = a[4]
+	a[4].Add(&a[4], &a[5])
+	a[5].Sub(&t, &a[5])
+
+	t = a[6]
+	a[6].Add(&a[6], &a[7])
+	a[7].Sub(&t, &a[7])
+
+	t = a[8]
+	a[8].Add(&a[8], &a[9])
+	a[9].Sub(&t, &a[9])
+
+	t = a[10]
+	a[10].Add(&a[10], &a[11])
+	a[11].Sub(&t, &a[11])
+
+	t = a[12]
+	a[12].Add(&a[12], &a[13])
+	a[13].Sub(&t, &a[13])
+
+	t = a[14]
+	a[14].Add(&a[14], &a[15])
+	a[15].Sub(&t, &a[15])
+
+}
+
 func difFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDone chan struct{}) {
 	if chDone != nil {
 		defer func() {
@@ -170,6 +324,9 @@ func difFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDon
 	}
 	n := len(a)
 	if n == 1 {
+		return
+	} else if n == 16 {
+		kerDIF32(a, twiddles, stage)
 		return
 	}
 	m := n >> 1
@@ -294,4 +451,250 @@ func BitReverse(a []fr.Element) {
 			a[i], a[irev] = a[irev], a[i]
 		}
 	}
+}
+
+// TODO add sources. Mostly from OpenZKP and Winterfell
+// Square transpose from https://faculty.kfupm.edu.sa/COE/mayez/xeon-phi/Xeon-Phi-Mat-Transpose/Transposition%20of%20Square-Xeon-Phi.pdf
+
+func (domain *Domain) difFFTSplit(a []fr.Element) {
+	n := len(a)
+
+	innerLen := 1 << (bits.TrailingZeros64(uint64(n)) / 2)
+	outerLen := n / innerLen
+
+	ratio := outerLen / innerLen
+	// if ratio == 1 	--> square matrix innerLen * innerLen
+	// if ratio == 2 	--> rect matrix innerLen * innerLen * 2
+
+	twiddles := domain.SplitTwiddles[0]
+
+	// transpose inner x inner x stretch square matrix
+	transposeMatrix(a, innerLen, ratio)
+
+	nbRows := n / outerLen
+
+	// apply inner FFTs on each row
+	parallel.Execute(nbRows, func(start, end int) {
+		for i := start; i < end; i++ {
+			s := i * outerLen
+			ss := s + outerLen
+			innerSplitFFT1(a[s:ss], twiddles, 0, ratio == 2)
+		}
+	})
+
+	// transpose inner x inner x stretch square matrix
+	transposeMatrix(a, innerLen, ratio)
+
+	nn := uint64(64 - bits.TrailingZeros64(uint64(innerLen)))
+
+	parallel.Execute(nbRows, func(startRow, endRow int) {
+		for ; startRow < endRow; startRow++ {
+			i := startRow * outerLen
+			if i != 0 {
+				irev := bits.Reverse64(uint64(startRow)) >> nn
+				for j := 1; j < outerLen; j++ {
+					a[i+j].Mul(&a[i+j], &domain.SplitTwiddles[irev+1][j-1])
+				}
+			}
+			innerSplitFFT1(a[i:i+outerLen], twiddles, 0, false)
+		}
+	})
+
+}
+
+func transposeMatrix(matrix []fr.Element, size int, ratio int) {
+	if ratio == 1 {
+		transposeSquare(matrix, size)
+	} else if ratio == 2 {
+		transposeRect(matrix, size)
+	} else {
+		panic("not implemented")
+	}
+}
+
+func transposeSquareOld(matrix []fr.Element, size int) {
+	// matrix.len() == size * size
+	// iterate over upper-left triangle, working in 2x2 blocks
+	for row := 0; row < size; row += 2 {
+		i := row*size + row
+		matrix[i+1], matrix[i+size] = matrix[i+size], matrix[i+1]
+
+		for col := row + 2; col < size; col += 2 {
+			i := row*size + col
+			j := col*size + row
+			matrix[i], matrix[j] = matrix[j], matrix[i]
+			matrix[i+1], matrix[j+size] = matrix[j+size], matrix[i+1]
+			matrix[i+size], matrix[j+1] = matrix[j+1], matrix[i+size]
+			matrix[i+size+1], matrix[j+size+1] = matrix[j+size+1], matrix[i+size+1]
+		}
+	}
+}
+
+const TILE = 16 // 16 ?
+
+func nestedLoopPlan(n int) (plan []int) {
+	nEven := n - n%TILE
+	wTiles := nEven / TILE
+	i := 0
+	plan = make([]int, wTiles*(wTiles-1)) // TODO fix size
+
+	for j := 1; j < wTiles; j++ {
+		for k := 0; k < j; k++ {
+			plan[2*i] = j * TILE
+			plan[2*i+1] = k * TILE
+			i++
+		}
+	}
+	return
+}
+
+func transposeSquare(a []fr.Element, size int) {
+	nEven := size - size%TILE
+	wTiles := nEven / TILE
+	nTilesParallel := wTiles * (wTiles - 1) / 2
+	plan := nestedLoopPlan(size)
+
+	parallel.Execute(nTilesParallel, func(start, end int) {
+		for k := start; k < end; k++ {
+			ii := plan[2*k]
+			jj := plan[2*k+1]
+			for j := jj; j < jj+TILE; j++ {
+				for i := ii; i < ii+TILE; i++ {
+					a[i*size+j], a[j*size+i] = a[j*size+i], a[i*size+j]
+				}
+			}
+		}
+	})
+
+	for ii := 0; ii < nEven; ii += TILE {
+		for j := ii; j < ii+TILE; j++ {
+			for i := ii; i < j; i++ {
+				a[i*size+j], a[j*size+i] = a[j*size+i], a[i*size+j]
+			}
+		}
+	}
+	for j := 0; j < nEven; j++ {
+		for i := nEven; i < size; i++ {
+			a[i*size+j], a[j*size+i] = a[j*size+i], a[i*size+j]
+		}
+	}
+
+	for j := nEven; j < size; j++ {
+		for i := nEven; i < j; i++ {
+			a[i*size+j], a[j*size+i] = a[j*size+i], a[i*size+j]
+		}
+	}
+
+}
+
+func transposeRect(matrix []fr.Element, size int) {
+	// matrix.len() == size * size * 2
+	// iterate over upper-left triangle, working in 1x2 blocks
+	for row := 0; row < size; row++ {
+		for col := row + 1; col < size; col++ {
+			i := (row*size + col) * 2
+			j := (col*size + row) * 2
+			matrix[i], matrix[j] = matrix[j], matrix[i]
+			matrix[i+1], matrix[j+1] = matrix[j+1], matrix[i+1]
+		}
+	}
+}
+
+func innerSplitFFT1(a []fr.Element, twiddles []fr.Element, tIndex int, skipLast bool) {
+	n := len(a)
+	if n == 1 || (skipLast && n == 2) {
+		return
+	}
+	m := n >> 1
+
+	var t, tm fr.Element
+
+	if tIndex == 0 {
+		for i := 0; i < m; i++ {
+			t = a[i]
+			a[i].Add(&t, &a[i+m])
+			a[i+m].Sub(&t, &a[i+m])
+		}
+	} else {
+		for i := 0; i < m; i++ {
+			t = a[i]
+			tm.Mul(&a[i+m], &twiddles[tIndex])
+			a[i].Add(&t, &tm)
+			a[i+m].Sub(&t, &tm)
+		}
+	}
+	tIndex <<= 1
+	if m == 1 || (skipLast && m == 2) {
+		return
+	}
+	innerSplitFFT1(a[:m], twiddles, tIndex, skipLast)
+	innerSplitFFT1(a[m:], twiddles, tIndex+1, skipLast)
+
+}
+
+const MAX_LOOP = 128
+
+func innerSplitFFT3(a []fr.Element, twiddles []fr.Element, count, stride, offset int) {
+	n := len(a) / stride
+
+	if n > 2 {
+		if stride == count && count < MAX_LOOP {
+			innerSplitFFT3(a, twiddles, 2*count, stride<<1, offset)
+		} else {
+			innerSplitFFT3(a, twiddles, count, stride<<1, offset)
+			innerSplitFFT3(a, twiddles, count, stride<<1, offset+stride)
+		}
+	}
+
+	var t fr.Element
+
+	for o := offset; o < offset+count; o++ {
+		t = a[o]
+		a[o].Add(&t, &a[o+stride])
+		a[o+stride].Sub(&t, &a[o+stride])
+	}
+
+	lastOffset := offset + n*stride
+
+	i := 1
+	for o := offset + 2*stride; o < lastOffset; o += 2 * stride {
+		for j := o; j < o+count; j++ {
+			t = a[j]
+			a[j+stride].Mul(&a[j+stride], &twiddles[i])
+			a[j].Add(&t, &a[j+stride])
+			a[j+stride].Sub(&t, &a[j+stride])
+		}
+		i++
+	}
+
+}
+
+func innerSplitFFT2(a []fr.Element, twiddles []fr.Element, stride int) {
+	n := len(a) / stride
+	two_stride := stride << 1
+	if n > 2 {
+		innerSplitFFT2(a, twiddles, two_stride)
+	}
+
+	var t, tm fr.Element
+
+	// process a[:2m]
+	for i := 0; i < stride; i++ {
+		t = a[i]
+		a[i].Add(&t, &a[i+stride])
+		a[i+stride].Sub(&t, &a[i+stride])
+	}
+
+	twiddleIndex := 1
+	// process a[2m:4m], a[4m:6m], ...
+	for startBlock := two_stride; startBlock < len(a)-stride; startBlock += two_stride {
+		for j := startBlock; j < startBlock+stride; j++ {
+			t = a[j]
+			tm.Mul(&a[j+stride], &twiddles[twiddleIndex])
+			a[j].Add(&t, &tm)
+			a[j+stride].Sub(&t, &tm)
+		}
+		twiddleIndex++
+	}
+
 }

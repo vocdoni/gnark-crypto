@@ -2,6 +2,7 @@ import (
 	"math/big"
 	"testing"
 	"strconv"
+	"math/bits"
 
 	{{ template "import_fr" . }}
 
@@ -18,6 +19,8 @@ func TestFFT(t *testing.T) {
 	domainWithPrecompute := NewDomain(maxSize, 2, true)
 	domainWOPrecompute := NewDomain(maxSize, 2, false)
 
+	domainWithPrecomputeOdd := NewDomain(maxSize<<1, 2, true)
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 5
 
@@ -29,25 +32,75 @@ func TestFFT(t *testing.T) {
 		func(ithpower int) bool {
 
 			pol := make([]fr.Element, maxSize)
+			polSplit := make([]fr.Element, maxSize)
 			backupPol := make([]fr.Element, maxSize)
 
 			for i := 0; i < maxSize; i++ {
 				pol[i].SetRandom()
 			}
 			copy(backupPol, pol)
+			copy(polSplit, pol)
 
 			domainWithPrecompute.FFT(pol, DIF, 0)
 			BitReverse(pol)
+
+			domainWithPrecompute.FFT(polSplit, SPLITDIF, 0)
+			BitReverse(polSplit)
+
+			for i := 0; i < maxSize; i++ {
+				if !pol[i].Equal(&polSplit[i]) {
+					return false
+				}
+			}
 
 			sample := domainWithPrecompute.Generator
 			sample.Exp(sample, big.NewInt(int64(ithpower)))
 
 			eval := evaluatePolynomial(backupPol, sample)
 
-			return eval.Equal(&pol[ithpower])
+			return eval.Equal(&pol[ithpower]) 
 
 		},
 		gen.IntRange(0, maxSize-1),
+	))
+
+
+	properties.Property("ODD SIZE DIF FFT should be consistent with dual basis", prop.ForAll(
+
+		// checks that a random evaluation of a dual function eval(gen**ithpower) is consistent with the FFT result
+		func(ithpower int) bool {
+
+			pol := make([]fr.Element, maxSize<<1)
+			polSplit := make([]fr.Element, maxSize<<1)
+			backupPol := make([]fr.Element, maxSize<<1)
+
+			for i := 0; i < maxSize<<1; i++ {
+				pol[i].SetRandom()
+			}
+			copy(backupPol, pol)
+			copy(polSplit, pol)
+
+			domainWithPrecomputeOdd.FFT(pol, DIF, 0)
+			BitReverse(pol)
+
+			domainWithPrecomputeOdd.FFT(polSplit, SPLITDIF, 0)
+			BitReverse(polSplit)
+
+			for i := 0; i < maxSize<<1; i++ {
+				if !pol[i].Equal(&polSplit[i]) {
+					return false
+				}
+			}
+
+			sample := domainWithPrecomputeOdd.Generator
+			sample.Exp(sample, big.NewInt(int64(ithpower)))
+
+			eval := evaluatePolynomial(backupPol, sample)
+
+			return eval.Equal(&pol[ithpower]) 
+
+		},
+		gen.IntRange(0, (maxSize<<1)-1),
 	))
 
 	properties.Property("DIF FFT on cosets with precomputed values should be consistent with dual basis", prop.ForAll(
@@ -309,6 +362,48 @@ func BenchmarkBitReverse(b *testing.B) {
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
 				BitReverse(_pol)
+			}
+		})
+	}
+
+}
+
+func TestTransposeEq(t *testing.T) {
+	const size = 1 << 4
+	var mat, mat2 [size]fr.Element
+	mSize := 1 << (bits.TrailingZeros64(size) / 2)
+
+	for i := uint64(0); i < size; i++ {
+		mat[i].SetUint64(i)
+	}
+	mat2 = mat
+
+	transposeSquareOld(mat[:], mSize)
+	transposeSquare(mat2[:], mSize)
+	if mat != mat2 {
+		t.Fatal("square transpose incorrect")
+	}
+}
+
+
+func BenchmarkFFTSplit(b *testing.B) {
+	const mm = 26
+	const maxSize = 1 << mm
+
+	pol := make([]fr.Element, maxSize)
+	for i := uint64(0); i < maxSize; i++ {
+		pol[i].SetRandom()
+	}
+
+	for i := 6; i < mm; i++ {
+		sizeDomain := 1 << i
+		_pol := make([]fr.Element, sizeDomain)
+		domain := NewDomain(uint64(sizeDomain), 0, false)
+		b.Run("fft 2**"+strconv.Itoa(i)+"bits (no cosets)", func(b *testing.B) {
+			copy(_pol, pol)
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				domain.FFT(_pol, DIF, 0)
 			}
 		})
 	}

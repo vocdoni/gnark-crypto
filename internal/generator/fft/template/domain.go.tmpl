@@ -27,7 +27,7 @@ type Domain struct {
 	// the following slices are not serialized and are (re)computed through domain.preComputeTwiddles()
 
 	// Twiddles factor for the FFT using Generator for each stage of the recursive FFT
-	Twiddles [][]fr.Element
+	Twiddles, SplitTwiddles [][]fr.Element
 
 	// Twiddles factor for the FFT using GeneratorInv for each stage of the recursive FFT
 	TwiddlesInv [][]fr.Element
@@ -208,6 +208,26 @@ func (d *Domain) preComputeTwiddles() {
 		wg.Wait()
 	}
 
+
+	// split twiddles
+	innerLen := 1 << (bits.TrailingZeros64(d.Cardinality) / 2)
+	outerLen := int(d.Cardinality) / innerLen
+	nbRows := int(d.Cardinality) / outerLen
+	d.SplitTwiddles = make([][]fr.Element, nbRows+1)
+	g := d.Generator
+
+	g.Exp(g, new(big.Int).SetInt64(int64(innerLen)))
+	d.SplitTwiddles[0] = getSplitTwiddles(g, outerLen)
+
+	for i := 0; i < nbRows; i++ {
+		innerTwiddle := d.Twiddles[0][i]
+		d.SplitTwiddles[i+1] = make([]fr.Element, outerLen)
+		t := innerTwiddle
+		for j := 0; j < outerLen; j++ {
+			d.SplitTwiddles[i+1][j] = t
+			t.Mul(&t, &innerTwiddle)
+		}
+	}
 }
 
 func precomputeExpTable(w fr.Element, table []fr.Element) {
@@ -293,4 +313,16 @@ func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
 	}
 
 	return dec.BytesRead(), nil
+}
+
+
+
+func getSplitTwiddles(root fr.Element, size int) []fr.Element {
+	twiddles := make([]fr.Element, size/2)
+	twiddles[0] = fr.One()
+	for i := 1; i < len(twiddles); i++ {
+		twiddles[i].Mul(&twiddles[i-1], &root)
+	}
+	BitReverse(twiddles)
+	return twiddles
 }

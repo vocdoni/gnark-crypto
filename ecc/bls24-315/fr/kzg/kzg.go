@@ -28,6 +28,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark-crypto/internal/parallel"
 )
 
 var (
@@ -453,7 +454,13 @@ func dividePolyByXminusA(d *fft.Domain, f polynomial.Polynomial, fa, a fr.Elemen
 
 	// first we compute f-f(a)
 	f = f[:d.Cardinality]
-	f[0].Sub(&f[0], &fa)
+	d.FFT(f, fft.DIF, 0)
+	parallel.Execute(len(f), func(start, end int) {
+		for i := start; i < end; i++ {
+			f[i].Sub(&f[i], &fa)
+		}
+	})
+	d.FFTInverse(f, fft.DIT, 0)
 
 	// now we use syntetic division to divide by x-a
 	// TODO check with large polynomials, we may want to parallelize this
