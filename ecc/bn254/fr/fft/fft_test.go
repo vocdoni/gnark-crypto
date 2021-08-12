@@ -419,7 +419,7 @@ func BenchmarkFFTSplit(b *testing.B) {
 			copy(_pol, pol)
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
-				domain.FFT(_pol, SPLITDIF, 0)
+				domain.FFT(_pol, DIF, 0)
 			}
 		})
 	}
