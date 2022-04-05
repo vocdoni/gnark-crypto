@@ -448,6 +448,14 @@ func (z *Element) Neg(x *Element) *Element {
 	return z
 }
 
+// Butterfly sets
+// z = z + x
+// x = z - x
+func (z *Element) Butterfly(x *Element) {
+	// TODO ensure this is inlined, or use directly the unexported method
+	Butterfly(z, x)
+}
+
 // Select is a constant-time conditional move.
 // If c=0, z = x0. Else z = x1
 func (z *Element) Select(c int, x0 *Element, x1 *Element) *Element {

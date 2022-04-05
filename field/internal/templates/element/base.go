@@ -374,6 +374,14 @@ func (z *{{.ElementName}}) Neg( x *{{.ElementName}}) *{{.ElementName}} {
 	return z
 }
 
+// Butterfly sets 
+// z = z + x
+// x = z - x
+func (z *{{.ElementName}}) Butterfly(x *{{.ElementName}}) {
+	// TODO ensure this is inlined, or use directly the unexported method
+	Butterfly(z,x)
+}
+
 // Select is a constant-time conditional move.
 // If c=0, z = x0. Else z = x1
 func (z *{{.ElementName}}) Select(c int, x0 *{{.ElementName}}, x1 *{{.ElementName}}) *{{.ElementName}} {
