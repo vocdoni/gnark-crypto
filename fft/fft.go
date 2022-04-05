@@ -25,6 +25,8 @@ import (
 	"github.com/consensys/gnark-crypto/types"
 )
 
+
+
 // Decimation is used in the FFT call to select decimation in time or in frequency
 type Decimation uint8
 
