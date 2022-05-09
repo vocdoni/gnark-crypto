@@ -16,6 +16,7 @@ package arm64
 
 import (
 	"fmt"
+	"github.com/consensys/bavard"
 	"github.com/consensys/bavard/arm64"
 	"strconv"
 	"strings"
@@ -248,47 +249,50 @@ func (f *FFArm64) generateNeg() {
 func (f *FFArm64) generateMul() {
 	f.generateMadd()
 	f.generateLoadVector()
+	defer f.AssertCleanStack(0, 0)
+
+	registers := f.FnHeader("mul", 0, 24)
+	variables := newVariables(f, &registers)
+	defer variables.undefAll()
 
 	f.Comment("mul(res, x, y)")
-	registers := f.FnHeader("mul", 0, 24)
-	defer f.AssertCleanStack(0, 0)
 
 	x := registers.PopN(2) //TODO: Always fetch for the next iteration? Will need 4
 	xPtr := registers.Pop()
 	yPtr := registers.Pop()
-	qInv0 := registers.Pop()
-	c0 := registers.Pop()
-	c1 := registers.Pop()
-	c2 := registers.Pop()
+	qInv0 := variables.def("_qInv0") //registers.Pop()
+	c0 := variables.def("c0")        //registers.Pop()
+	c1 := variables.def("c1")        //registers.Pop()
+	c2 := variables.def("c2")        //registers.Pop()
 	//c3 := registers.Pop() //Need an extra one for madd0
-	m := registers.Pop()
+	m := variables.def("m") //registers.Pop()
 
-	q := registers.PopN(f.NbWords)
-	y := registers.PopN(f.NbWords)
+	q := variables.defN("q", f.NbWords) //registers.PopN(f.NbWords)
+	y := variables.defN("y", f.NbWords) //registers.PopN(f.NbWords)
 
 	f.Comment("Load all of y")
 	f.LDP("x+8(FP)", xPtr, yPtr)
 	f.loadVector(yPtr, y)
 	registers.Push(yPtr)
-	z := registers.PopN(f.NbWords)
+	z := variables.defN("z", f.NbWords) //registers.PopN(f.NbWords)
 
 	f.MOVD(f.GlobalOffset("qInv0", 0), qInv0, "Load qInv0")
 	f.Comment("Load q")
 	for i := 0; i < f.NbWords-1; i += 2 {
-		f.LDP(f.GlobalOffset("q", 8*i), q[i], q[i+1], fmt.Sprintf("%s, %s = q[%d], q[%d]", q[i].Name(), q[i+1].Name(), i, i+1))
+		f.LDP(f.GlobalOffset("q", 8*i), q[i], q[i+1] /*, fmt.Sprintf("%s, %s = q[%d], q[%d]", q[i].Name(), q[i+1].Name(), i, i+1)*/)
 	}
 	if f.NbWords%2 == 1 {
 		i := f.NbWords - 1
-		f.MOVD(f.GlobalOffset("q", 8*i), q[i], fmt.Sprintf("%s = q[%d]", q[i].Name(), i))
+		f.MOVD(f.GlobalOffset("q", 8*i), q[i] /*, fmt.Sprintf("%s = q[%d]", q[i].Name(), i)*/)
 	}
 
 	for j := 0; j < f.NbWords; j++ {
 
 		if j%2 == 0 {
 			if j+1 < f.NbWords {
-				f.LDP(f.RegisterOffset(xPtr, 8*j), x[0], x[1], fmt.Sprintf("%s, %s = x[%d], x[%d]", x[0].Name(), x[1].Name(), j, j+1))
+				f.LDP(f.RegisterOffset(xPtr, 8*j), x[0], x[1] /*, fmt.Sprintf("%s, %s = x[%d], x[%d]", x[0].Name(), x[1].Name(), j, j+1)*/)
 			} else {
-				f.MOVD(f.RegisterOffset(xPtr, 8*j), x[0], fmt.Sprintf("%s = x[%d]", x[0].Name(), j))
+				f.MOVD(f.RegisterOffset(xPtr, 8*j), x[0] /*, fmt.Sprintf("%s = x[%d]", x[0].Name(), j)*/)
 			}
 		}
 
@@ -303,7 +307,7 @@ func (f *FFArm64) generateMul() {
 			f.madd1(c1, c0, v, y[0], z[0])
 		}
 
-		f.MUL(qInv0, m, c0)
+		f.MUL(qInv0, c0, m)
 		f.madd0(c2, m, q[0], c0)
 
 		for i := 1; i < f.NbWords; i++ {
@@ -454,47 +458,53 @@ func (f *FFArm64) generateMadd() {
 }
 
 // madd0 (hi, -) = a*b + c
-func (f *FFArm64) madd0(hi, a, b, c arm64.Register) {
+func (f *FFArm64) madd0(hi, a, b, c interface{}) {
 	f.callTemplate("madd0", hi, a, b, c)
 }
 
 // madd1 (hi, lo) = a*b + c
-func (f *FFArm64) madd1(hi, lo, a, b, c arm64.Register) {
+func (f *FFArm64) madd1(hi, lo, a, b, c interface{}) {
 	f.callTemplate("madd1", hi, lo, a, b, c)
 }
 
 // madd2 (hi, lo) = a*b + c + d
-func (f *FFArm64) madd2(hi, lo, a, b, c, d arm64.Register) {
+func (f *FFArm64) madd2(hi, lo, a, b, c, d interface{}) {
 	f.callTemplate("madd2", hi, lo, a, b, c, d)
 }
 
 // madd3 (hi, lo) = a*b + c + d + (e,0)
-func (f *FFArm64) madd3(hi, lo, a, b, c, d, e arm64.Register) {
+func (f *FFArm64) madd3(hi, lo, a, b, c, d, e interface{}) {
 	f.callTemplate("madd3", hi, lo, a, b, c, d, e)
 }
 
-func toInterfaceSlice(first interface{}, rest []arm64.Register) []interface{} {
-	res := make([]interface{}, len(rest)+1)
+func toInterfaceSlice(first interface{}, rest interface{}) []interface{} {
+	restSlice, err := bavard.AssertSlice(rest)
+
+	if err != nil {
+		panic("not a slice")
+	}
+
+	res := make([]interface{}, restSlice.Len()+1)
 	res[0] = first
-	for i := 0; i < len(rest); i++ {
-		res[i+1] = rest[i]
+	for i := 0; i < restSlice.Len(); i++ {
+		res[i+1] = restSlice.Index(i).Interface()
 	}
 	return res
 }
 
-func (f *FFArm64) loadVector(ePtr interface{}, e []arm64.Register) {
-	f.callTemplate("loadVector", toInterfaceSlice(ePtr, e)...)
+func (f *FFArm64) loadVector(vectorHeadPtr interface{}, vector interface{}) {
+	f.callTemplate("loadVector", toInterfaceSlice(vectorHeadPtr, vector)...)
 }
 
-func (f *FFArm64) storeVector(v []arm64.Register, baseAddress arm64.Register) {
-	f.callTemplate("storeVector", toInterfaceSlice(baseAddress, v)...)
+func (f *FFArm64) storeVector(vector interface{}, baseAddress arm64.Register) {
+	f.callTemplate("storeVector", toInterfaceSlice(baseAddress, vector)...)
 	/*	for i := 0; i < f.NbWords-1; i += 2 {
-			f.STP(v[i], v[i+1], f.RegisterOffset(baseAddress, 8*i))
+			f.STP(vector[i], vector[i+1], f.RegisterOffset(baseAddress, 8*i))
 		}
 
 		if f.NbWords%2 == 1 {
 			i := f.NbWords - 1
-			f.MOVD(v[i], f.RegisterOffset(baseAddress, 8*i))
+			f.MOVD(vector[i], f.RegisterOffset(baseAddress, 8*i))
 		}*/
 }
 
