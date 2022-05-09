@@ -274,7 +274,7 @@ func (f *FFArm64) generateMul() {
 
 	f.MOVD(f.GlobalOffset("qInv0", 0), qInv0, "Load qInv0")
 	f.Comment("Load q")
-	for i := 0; i < f.NbWords; i += 2 {
+	for i := 0; i < f.NbWords-1; i += 2 {
 		f.LDP(f.GlobalOffset("q", 8*i), q[i], q[i+1], fmt.Sprintf("%s, %s = q[%d], q[%d]", q[i].Name(), q[i+1].Name(), i, i+1))
 	}
 	if f.NbWords%2 == 1 {

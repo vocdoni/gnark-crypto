@@ -18,4 +18,8 @@ func double(z,  x *{{.ElementName}}) {
 func neg(z,  x *{{.ElementName}}) {
 	_negGeneric(z,x)
 }
+
+func mul(z, x, y *{{.ElementName}}) {
+	_mulGeneric(z, x, y)
+}
 `

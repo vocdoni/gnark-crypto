@@ -25,9 +25,6 @@ func Butterfly(a, b *{{.ElementName}}) {
 	_butterflyGeneric(a, b)
 }
 
-func mul(z, x, y *{{.ElementName}}) {
-	_mulGeneric(z, x, y)
-}
 
 
 // FromMont converts z in place (i.e. mutates) from Montgomery to regular representation
@@ -51,7 +48,13 @@ func sub(z,  x, y *{{.ElementName}}) {
 
 func neg(z,  x *{{.ElementName}}) {
 	_negGeneric(z,x)
-}*/
+}
+
+func mul(z, x, y *{{.ElementName}}) {
+	_mulGeneric(z, x, y)
+}
+
+*/
 
 func reduce(z *{{.ElementName}})  {
 	_reduceGeneric(z)

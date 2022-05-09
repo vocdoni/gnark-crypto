@@ -61,5 +61,8 @@ func double(res,x *{{.ElementName}})
 //go:noescape
 func neg(res,x *{{.ElementName}})
 
+//go:noescape
+func mul(res,x,y *{{.ElementName}})
+
 {{end}}
 `

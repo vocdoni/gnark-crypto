@@ -48,6 +48,12 @@ func Generate(w io.Writer, F *field.Field) error {
 
 	// neg
 	f.generateNeg()
+
+	// mul
+	if f.NbWords < 8 {
+		f.generateMul()
+	}
+
 	/*
 		// reduce
 		f.generateReduce()
