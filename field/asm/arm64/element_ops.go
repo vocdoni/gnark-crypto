@@ -444,13 +444,14 @@ func (f *FFArm64) generateMadd() {
 
 // madd2 (hi, lo) = a*b + c + d
 #define madd2(hi, lo, a, b, c, d) \
-    madd3(a, b, c, d, $0, hi, lo)\
+    madd3(hi, lo, a, b, c, d, $0)\
 
 //madd3 (hi, lo) = a*b + c + d + (e,0)
+// hi can be the same register as a, b or c.
 #define madd3(hi, lo, a, b, c, d, e) \
     MUL a, b, lo\
-    UMULH a, b, hi\
     ADDS c, lo, lo\
+    UMULH a, b, hi\
     ADC $0, hi, hi\
     ADDS d, lo, lo\
     ADC e, hi, hi\

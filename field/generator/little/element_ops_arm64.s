@@ -133,8 +133,6 @@ madd1(hi, hi, a, b, c) \
 #define madd2(hi, lo, a, b, c, d) \
 madd3(hi, lo, a, b, c, d, $0) \
 
-
-
 // madd3 (hi, lo) = a*b + c + d + (e,0)
 // hi can be the same register as a, b or c.
 #define madd3(hi, lo, a, b, c, d, e) \
@@ -145,21 +143,8 @@ madd3(hi, lo, a, b, c, d, $0) \
 	ADDS  d, lo, lo  \
 	ADC   e, hi, hi  \
 
-
-// madd2Asm(res[2], a, b, c, d)
-TEXT ·madd2Asm(SB), NOSPLIT, $0-40
-    LDP res+0(FP), (R0, R1)
-    LDP res+16(FP), (R2, R3)
-    MOVD res+32(FP), R4
-
-    madd2(R5, R6, R1, R2, R3, R4)
-    STP (R5, R6), (R0)
-    RET
-
-
 #define loadVector(ePtr, e0, e1) \
 	LDP 0(ePtr), (e0, e1) \
-
 
 TEXT ·mul(SB), NOSPLIT, $0-24
 	// mul(res, x, y)
@@ -192,30 +177,12 @@ loadVector(R3, y0, y1)
 	madd1(c1, c0, R0, y1, c1)
 	madd3(z1, z0, m, q1, c0, c2, c1)
 
-    // save z0, z1 to x
-    //STP (z0, z1), (R2)
-    //RET
-
 	// Round 1
 	madd1(c1, c0, R1, y0, z0)
 	MUL _qInv0, c0, m
 	madd0(c2, m, q0, c0)
-
-	// save c2, m to x
-	//STP (c2, m), (R2)
-	//RET
-
 	madd2(c1, c0, R1, y1, c1, z1)
-
-	// save c1, c0 to x
-	STP (c1, c0), (R2)
-	RET
-
 	madd3(z1, z0, m, q1, c0, c2, c1)
-
-    // save z0, z1 to x
-    //STP (z0, z1), (R2)
-    //RET
 
 	// Reduce if necessary
 	SUBS q0, z0, y0
@@ -226,14 +193,14 @@ loadVector(R3, y0, y1)
 	storeVector(R2, z0, z1)
 	RET
 
-#undef z0
+#undef _qInv0
 #undef c0
+#undef c1
 #undef c2
 #undef m
-#undef y1
-#undef y0
-#undef z1
-#undef _qInv0
-#undef c1
 #undef q0
 #undef q1
+#undef y0
+#undef y1
+#undef z0
+#undef z1

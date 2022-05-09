@@ -208,88 +208,121 @@ madd3(a, b, c, d, $0, hi, lo) \
 	LDP  16(ePtr), (e2, e3) \
 	MOVD 32(ePtr), e4       \
 
-// mul(res, x, y)
 TEXT ·mul(SB), NOSPLIT, $0-24
+	// mul(res, x, y)
+#define _qInv0 R4
+#define c0 R5
+#define c1 R6
+#define c2 R7
+#define m R8
+#define q0 R9
+#define q1 R10
+#define q2 R11
+#define q3 R12
+#define q4 R13
+#define y0 R14
+#define y1 R15
+#define y2 R16
+#define y3 R17
+#define y4 R19
 	// Load all of y
-	LDP  x+8(FP), (R2, R3)
-	loadVector(R3, R14, R15, R16, R17, R19)
-	MOVD qInv0<>+0(SB), R4 // Load qInv0
+	LDP x+8(FP), (R2, R3)
+	loadVector(R3, y0, y1, y2, y3, y4)
+
+#define z0 R3
+#define z1 R20
+#define z2 R21
+#define z3 R22
+#define z4 R23
+	MOVD qInv0<>+0(SB), _qInv0 // Load qInv0
 
 	// Load q
-	LDP   q<>+0(SB), (R9, R10)   // R9, R10 = q[0], q[1]
-	LDP   q<>+16(SB), (R11, R12) // R11, R12 = q[2], q[3]
-	MOVD  q<>+32(SB), R13        // R13 = q[4]
-	LDP   0(R2), (R0, R1)        // R0, R1 = x[0], x[1]
-	MUL   R0, R14, R5
-	UMULH R0, R14, R6
-	MUL   R4, R8, R5
-	madd0(R7, R8, R9, R5)
-	madd1(R6, R5, R0, R15, R6)
-	madd2(R7, R20, R8, R10, R7, R5)
-	madd1(R6, R5, R0, R16, R6)
-	madd2(R7, R21, R8, R11, R7, R5)
-	madd1(R6, R5, R0, R17, R6)
-	madd2(R7, R22, R8, R12, R7, R5)
-	madd1(R6, R5, R0, R19, R6)
-	madd3(R23, R22, R8, R13, R5, R7, R6)
-	madd1(R6, R5, R1, R14, R3)
-	MUL   R4, R8, R5
-	madd0(R7, R8, R9, R5)
-	madd2(R6, R5, R1, R15, R6, R20)
-	madd2(R7, R20, R8, R10, R7, R5)
-	madd2(R6, R5, R1, R16, R6, R21)
-	madd2(R7, R21, R8, R11, R7, R5)
-	madd2(R6, R5, R1, R17, R6, R22)
-	madd2(R7, R22, R8, R12, R7, R5)
-	madd2(R6, R5, R1, R19, R6, R23)
-	madd3(R23, R22, R8, R13, R5, R7, R6)
-	LDP   16(R2), (R0, R1)       // R0, R1 = x[2], x[3]
-	madd1(R6, R5, R0, R14, R3)
-	MUL   R4, R8, R5
-	madd0(R7, R8, R9, R5)
-	madd2(R6, R5, R0, R15, R6, R20)
-	madd2(R7, R20, R8, R10, R7, R5)
-	madd2(R6, R5, R0, R16, R6, R21)
-	madd2(R7, R21, R8, R11, R7, R5)
-	madd2(R6, R5, R0, R17, R6, R22)
-	madd2(R7, R22, R8, R12, R7, R5)
-	madd2(R6, R5, R0, R19, R6, R23)
-	madd3(R23, R22, R8, R13, R5, R7, R6)
-	madd1(R6, R5, R1, R14, R3)
-	MUL   R4, R8, R5
-	madd0(R7, R8, R9, R5)
-	madd2(R6, R5, R1, R15, R6, R20)
-	madd2(R7, R20, R8, R10, R7, R5)
-	madd2(R6, R5, R1, R16, R6, R21)
-	madd2(R7, R21, R8, R11, R7, R5)
-	madd2(R6, R5, R1, R17, R6, R22)
-	madd2(R7, R22, R8, R12, R7, R5)
-	madd2(R6, R5, R1, R19, R6, R23)
-	madd3(R23, R22, R8, R13, R5, R7, R6)
-	MOVD  32(R2), R0             // R0 = x[4]
-	madd1(R6, R5, R0, R14, R3)
-	MUL   R4, R8, R5
-	madd0(R7, R8, R9, R5)
-	madd2(R6, R5, R0, R15, R6, R20)
-	madd2(R7, R20, R8, R10, R7, R5)
-	madd2(R6, R5, R0, R16, R6, R21)
-	madd2(R7, R21, R8, R11, R7, R5)
-	madd2(R6, R5, R0, R17, R6, R22)
-	madd2(R7, R22, R8, R12, R7, R5)
-	madd2(R6, R5, R0, R19, R6, R23)
-	madd3(R23, R22, R8, R13, R5, R7, R6)
+	LDP  q<>+0(SB), (q0, q1)
+	LDP  q<>+16(SB), (q2, q3)
+	MOVD q<>+32(SB), q4
+	LDP  0(R2), (R0, R1)
+
+	// Round 0
+	MUL   R0, y0, c0
+	UMULH R0, y0, c1
+	MUL   _qInv0, m, c0
+	madd0(c2, m, q0, c0)
+	madd1(c1, c0, R0, y1, c1)
+	madd2(c2, z1, m, q1, c2, c0)
+	madd1(c1, c0, R0, y2, c1)
+	madd2(c2, z2, m, q2, c2, c0)
+	madd1(c1, c0, R0, y3, c1)
+	madd2(c2, z3, m, q3, c2, c0)
+	madd1(c1, c0, R0, y4, c1)
+	madd3(z4, z3, m, q4, c0, c2, c1)
+
+	// Round 1
+	madd1(c1, c0, R1, y0, z0)
+	MUL _qInv0, m, c0
+	madd0(c2, m, q0, c0)
+	madd2(c1, c0, R1, y1, c1, z1)
+	madd2(c2, z1, m, q1, c2, c0)
+	madd2(c1, c0, R1, y2, c1, z2)
+	madd2(c2, z2, m, q2, c2, c0)
+	madd2(c1, c0, R1, y3, c1, z3)
+	madd2(c2, z3, m, q3, c2, c0)
+	madd2(c1, c0, R1, y4, c1, z4)
+	madd3(z4, z3, m, q4, c0, c2, c1)
+	LDP 16(R2), (R0, R1)
+
+	// Round 2
+	madd1(c1, c0, R0, y0, z0)
+	MUL _qInv0, m, c0
+	madd0(c2, m, q0, c0)
+	madd2(c1, c0, R0, y1, c1, z1)
+	madd2(c2, z1, m, q1, c2, c0)
+	madd2(c1, c0, R0, y2, c1, z2)
+	madd2(c2, z2, m, q2, c2, c0)
+	madd2(c1, c0, R0, y3, c1, z3)
+	madd2(c2, z3, m, q3, c2, c0)
+	madd2(c1, c0, R0, y4, c1, z4)
+	madd3(z4, z3, m, q4, c0, c2, c1)
+
+	// Round 3
+	madd1(c1, c0, R1, y0, z0)
+	MUL  _qInv0, m, c0
+	madd0(c2, m, q0, c0)
+	madd2(c1, c0, R1, y1, c1, z1)
+	madd2(c2, z1, m, q1, c2, c0)
+	madd2(c1, c0, R1, y2, c1, z2)
+	madd2(c2, z2, m, q2, c2, c0)
+	madd2(c1, c0, R1, y3, c1, z3)
+	madd2(c2, z3, m, q3, c2, c0)
+	madd2(c1, c0, R1, y4, c1, z4)
+	madd3(z4, z3, m, q4, c0, c2, c1)
+	MOVD 32(R2), R0
+
+	// Round 4
+	madd1(c1, c0, R0, y0, z0)
+	MUL _qInv0, m, c0
+	madd0(c2, m, q0, c0)
+	madd2(c1, c0, R0, y1, c1, z1)
+	madd2(c2, z1, m, q1, c2, c0)
+	madd2(c1, c0, R0, y2, c1, z2)
+	madd2(c2, z2, m, q2, c2, c0)
+	madd2(c1, c0, R0, y3, c1, z3)
+	madd2(c2, z3, m, q3, c2, c0)
+	madd2(c1, c0, R0, y4, c1, z4)
+	madd3(z4, z3, m, q4, c0, c2, c1)
 
 	// Reduce if necessary
-	SUBS R9, R3, R14
-	SBCS R10, R20, R15
-	SBCS R11, R21, R16
-	SBCS R12, R22, R17
-	SBCS R13, R23, R19
-	CSEL CS, R14, R3, R3
-	CSEL CS, R15, R20, R20
-	CSEL CS, R16, R21, R21
-	CSEL CS, R17, R22, R22
-	CSEL CS, R19, R23, R23
-	MOVD res+0(FP), R2     // zPtr
-	storeVector(R2, R3, R20, R21, R22, R23)
+	SUBS q0, z0, y0
+	SBCS q1, z1, y1
+	SBCS q2, z2, y2
+	SBCS q3, z3, y3
+	SBCS q4, z4, y4
+	CSEL CS, y0, z0, z0
+	CSEL CS, y1, z1, z1
+	CSEL CS, y2, z2, z2
+	CSEL CS, y3, z3, z3
+	CSEL CS, y4, z4, z4
+	MOVD res+0(FP), R2  // zPtr
+	storeVector(R2, z0, z1, z2, z3, z4)
 	RET
+
+#undef c2, z0, z2, z3, q2, q3, q4, y3, y4, y0, z1, z4, _qInv0, c1, m, q0, q1, c0, y1, y2

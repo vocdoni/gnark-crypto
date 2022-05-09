@@ -2,6 +2,7 @@ package arm64
 
 import (
 	"github.com/consensys/bavard/arm64"
+	"sort"
 	"strconv"
 )
 
@@ -59,6 +60,8 @@ func keys(m map[string]arm64.Register) []string {
 	for key := range m {
 		_keys = append(_keys, key)
 	}
+
+	sort.Strings(_keys)
 	return _keys
 }
 
