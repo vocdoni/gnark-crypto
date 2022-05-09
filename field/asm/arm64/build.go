@@ -32,6 +32,10 @@ func Generate(w io.Writer, F *field.Field) error {
 	//f.GenerateDefines()
 	f.generateGlobals()
 
+	//macros
+	f.generateStoreVector()
+	//f.generateReduce()
+
 	// add
 	//TODO: It requires field size < 960
 	f.generateAdd()
