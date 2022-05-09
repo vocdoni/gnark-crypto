@@ -294,6 +294,8 @@ func (f *FFArm64) generateMul() {
 
 		v := x[j%2]
 
+		f.Comment("Round " + strconv.Itoa(j))
+
 		if j == 0 {
 			f.MUL(v, y[0], c0)
 			f.UMULH(v, y[0], c1)
@@ -317,6 +319,15 @@ func (f *FFArm64) generateMul() {
 				f.madd2(c2, z[i], m, q[i], c2, c0)
 			}
 		}
+	}
+
+	f.Comment("Reduce if necessary")
+	f.SUBS(q[0], z[0], y[0])
+	for i := 1; i < f.NbWords; i++ {
+		f.SBCS(q[i], z[i], y[i])
+	}
+	for i := 0; i < f.NbWords; i++ {
+		f.CSEL("CS", y[i], z[i], z[i])
 	}
 
 	registers.Push(xPtr)
@@ -419,7 +430,8 @@ func (f *FFArm64) generateMadd() {
     madd1(hi, hi, a, b, c)\
 
 // (hi, lo) = a*b + c
-// it's okay to have hi = lo or c but not lo = c
+// hi can be the same register as any other operand, including lo
+// lo can't be the same register as any of the input
 #define madd1(hi, lo, a, b, c) \
     MUL a, b, lo\
 	ADDS c, lo, lo\

@@ -182,7 +182,8 @@ TEXT ·neg(SB), NOSPLIT, $0-16
 madd1(hi, hi, a, b, c) \
 
 // (hi, lo) = a*b + c
-// it's okay to have hi = lo or c but not lo = c
+// hi can be the same register as any other operand, including lo
+// lo can't be the same register as any of the input
 #define madd1(hi, lo, a, b, c) \
 	MUL   a, b, lo   \
 	ADDS  c, lo, lo  \
@@ -277,6 +278,18 @@ TEXT ·mul(SB), NOSPLIT, $0-24
 	madd2(R7, R22, R8, R12, R7, R5)
 	madd2(R6, R5, R0, R19, R6, R23)
 	madd3(R23, R22, R8, R13, R5, R7, R6)
-	MOVD  res+0(FP), R2          // zPtr
+
+	// Reduce if necessary
+	SUBS R9, R3, R14
+	SBCS R10, R20, R15
+	SBCS R11, R21, R16
+	SBCS R12, R22, R17
+	SBCS R13, R23, R19
+	CSEL CS, R14, R3, R3
+	CSEL CS, R15, R20, R20
+	CSEL CS, R16, R21, R21
+	CSEL CS, R17, R22, R22
+	CSEL CS, R19, R23, R23
+	MOVD res+0(FP), R2     // zPtr
 	storeVector(R2, R3, R20, R21, R22, R23)
 	RET

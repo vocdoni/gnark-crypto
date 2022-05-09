@@ -102,3 +102,15 @@ func TestIntegration(t *testing.T) {
 	}
 
 }
+
+//TODO: Remove
+func TestGenerateLittleField(t *testing.T) {
+	f, err := field.NewField("little", "Element", "0x37e729c0c0cc27602b", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = GenerateFF(f, "little")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
