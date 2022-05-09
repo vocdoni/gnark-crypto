@@ -50,7 +50,7 @@ func Generate(w io.Writer, F *field.Field) error {
 	f.generateNeg()
 
 	// mul
-	if f.NbWords < 8 {
+	if f.NbWords <= 9 {
 		f.generateMul()
 	}
 

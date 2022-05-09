@@ -27,3 +27,6 @@ func double(res, x *Element)
 
 //go:noescape
 func neg(res, x *Element)
+
+//go:noescape
+func mul(res, x, y *Element)

@@ -34,3 +34,7 @@ func double(z, x *Element) {
 func neg(z, x *Element) {
 	_negGeneric(z, x)
 }
+
+func mul(z, x, y *Element) {
+	_mulGeneric(z, x, y)
+}

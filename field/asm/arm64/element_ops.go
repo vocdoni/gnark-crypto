@@ -296,7 +296,7 @@ func (f *FFArm64) generateMul() {
 
 		if j == 0 {
 			f.MUL(v, y[0], c0)
-			f.MULH(v, y[0], c1)
+			f.UMULH(v, y[0], c1)
 		} else {
 			f.madd1(c1, c0, v, y[0], z[0])
 		}
@@ -423,7 +423,7 @@ func (f *FFArm64) generateMadd() {
 #define madd1(hi, lo, a, b, c) \
     MUL a, b, lo\
 	ADDS c, lo, lo\
-    MULH a, b, hi\
+    UMULH a, b, hi\
     ADC $0, hi, hi\
 
 // madd2 (hi, lo) = a*b + c + d
@@ -433,16 +433,17 @@ func (f *FFArm64) generateMadd() {
 //madd3 (hi, lo) = a*b + c + d + (e,0)
 #define madd3(hi, lo, a, b, c, d, e) \
     MUL a, b, lo\
-    MULH a, b, hi\
+    UMULH a, b, hi\
     ADDS c, lo, lo\
     ADC $0, hi, hi\
     ADDS d, lo, lo\
-    ADC e, hi, hi\`)
+    ADC e, hi, hi\
+`)
 }
 
 // madd0 (hi, -) = a*b + c
 func (f *FFArm64) madd0(hi, a, b, c arm64.Register) {
-	f.callTemplate("madd1", hi, a, b, c)
+	f.callTemplate("madd0", hi, a, b, c)
 }
 
 // madd1 (hi, lo) = a*b + c

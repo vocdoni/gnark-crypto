@@ -152,3 +152,85 @@ TEXT ·neg(SB), NOSPLIT, $0-16
 	// store
 	storeVector(R5, R0, R1, R2, R3)
 	RET
+
+// (hi, -) = a*b + c
+#define madd0(hi, a, b, c) \
+madd1(hi, hi, a, b, c) \
+
+// (hi, lo) = a*b + c
+// it's okay to have hi = lo or c but not lo = c
+#define madd1(hi, lo, a, b, c) \
+	MUL   a, b, lo   \
+	ADDS  c, lo, lo  \
+	UMULH a, b, hi   \
+	ADC   $0, hi, hi \
+
+// madd2 (hi, lo) = a*b + c + d
+#define madd2(hi, lo, a, b, c, d) \
+madd3(a, b, c, d, $0, hi, lo) \
+
+// madd3 (hi, lo) = a*b + c + d + (e,0)
+#define madd3(hi, lo, a, b, c, d, e) \
+	MUL   a, b, lo   \
+	UMULH a, b, hi   \
+	ADDS  c, lo, lo  \
+	ADC   $0, hi, hi \
+	ADDS  d, lo, lo  \
+	ADC   e, hi, hi  \
+
+#define loadVector(ePtr, e0, e1, e2, e3) \
+	LDP 0(ePtr), (e0, e1)  \
+	LDP 16(ePtr), (e2, e3) \
+
+// mul(res, x, y)
+TEXT ·mul(SB), NOSPLIT, $0-24
+	// Load all of y
+	LDP  x+8(FP), (R2, R3)
+	loadVector(R3, R13, R14, R15, R16)
+	MOVD qInv0<>+0(SB), R4 // Load qInv0
+
+	// Load q
+	LDP   q<>+0(SB), (R9, R10)   // R9, R10 = q[0], q[1]
+	LDP   q<>+16(SB), (R11, R12) // R11, R12 = q[2], q[3]
+	LDP   0(R2), (R0, R1)        // R0, R1 = x[0], x[1]
+	MUL   R0, R13, R5
+	UMULH R0, R13, R6
+	MUL   R4, R8, R5
+	madd0(R7, R8, R9, R5)
+	madd1(R6, R5, R0, R14, R6)
+	madd2(R7, R17, R8, R10, R7, R5)
+	madd1(R6, R5, R0, R15, R6)
+	madd2(R7, R19, R8, R11, R7, R5)
+	madd1(R6, R5, R0, R16, R6)
+	madd3(R20, R19, R8, R12, R5, R7, R6)
+	madd1(R6, R5, R1, R13, R3)
+	MUL   R4, R8, R5
+	madd0(R7, R8, R9, R5)
+	madd2(R6, R5, R1, R14, R6, R17)
+	madd2(R7, R17, R8, R10, R7, R5)
+	madd2(R6, R5, R1, R15, R6, R19)
+	madd2(R7, R19, R8, R11, R7, R5)
+	madd2(R6, R5, R1, R16, R6, R20)
+	madd3(R20, R19, R8, R12, R5, R7, R6)
+	LDP   16(R2), (R0, R1)       // R0, R1 = x[2], x[3]
+	madd1(R6, R5, R0, R13, R3)
+	MUL   R4, R8, R5
+	madd0(R7, R8, R9, R5)
+	madd2(R6, R5, R0, R14, R6, R17)
+	madd2(R7, R17, R8, R10, R7, R5)
+	madd2(R6, R5, R0, R15, R6, R19)
+	madd2(R7, R19, R8, R11, R7, R5)
+	madd2(R6, R5, R0, R16, R6, R20)
+	madd3(R20, R19, R8, R12, R5, R7, R6)
+	madd1(R6, R5, R1, R13, R3)
+	MUL   R4, R8, R5
+	madd0(R7, R8, R9, R5)
+	madd2(R6, R5, R1, R14, R6, R17)
+	madd2(R7, R17, R8, R10, R7, R5)
+	madd2(R6, R5, R1, R15, R6, R19)
+	madd2(R7, R19, R8, R11, R7, R5)
+	madd2(R6, R5, R1, R16, R6, R20)
+	madd3(R20, R19, R8, R12, R5, R7, R6)
+	MOVD  res+0(FP), R2          // zPtr
+	storeVector(R2, R3, R17, R19, R20)
+	RET
