@@ -213,7 +213,7 @@ loadVector(R3, y0, y1, y2)
 	MUL _qInv0, c0, m
 	madd0(c2, m, q0, c0)
 	madd2(c1, c0, R1, y1, c1, z1)
-	madd2(c2, z1, m, q1, c2, c0)
+	madd2(c2, z0, m, q1, c2, c0)
 	madd2(c1, c0, R1, y2, c1, z2)
 	madd3(z2, z1, m, q2, c0, c2, c1)
 
@@ -223,7 +223,7 @@ loadVector(R3, y0, y1, y2)
 	MUL  _qInv0, c0, m
 	madd0(c2, m, q0, c0)
 	madd2(c1, c0, R0, y1, c1, z1)
-	madd2(c2, z1, m, q1, c2, c0)
+	madd2(c2, z0, m, q1, c2, c0)
 	madd2(c1, c0, R0, y2, c1, z2)
 	madd3(z2, z1, m, q2, c0, c2, c1)
 

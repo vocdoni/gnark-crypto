@@ -320,7 +320,7 @@ func (f *FFArm64) generateMul() {
 			if i+1 == f.NbWords {
 				f.madd3(z[i], z[i-1], m, q[i], c0, c2, c1)
 			} else {
-				f.madd2(c2, z[i], m, q[i], c2, c0)
+				f.madd2(c2, z[i-1], m, q[i], c2, c0)
 			}
 		}
 	}
