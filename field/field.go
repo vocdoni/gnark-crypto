@@ -18,11 +18,9 @@ package field
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark-crypto/field/internal/addchain"
 	"math/big"
 	"math/bits"
-	"unicode"
-
-	"github.com/consensys/gnark-crypto/field/internal/addchain"
 )
 
 var (
@@ -74,16 +72,14 @@ type Field struct {
 
 // NewField returns a data structure with needed information to generate apis for field element
 //
+// The parsing of "modulus" is done by big.Int.SetString(-, 0). The base is determined by the prefix (from golang documentation):
+// 'A prefix of “0b” or “0B” selects base 2, “0”, “0o” or “0O” selects base 8, and “0x” or “0X” selects base 16. Otherwise, the selected base is 10 and no prefix is accepted.'
 // See field/generator package
 func NewField(packageName, elementName, modulus string, useAddChain bool) (*Field, error) {
 	// parse modulus
 	var bModulus big.Int
-	base := 10
-	if modulus[0] == '0' && (unicode.ToUpper(rune(modulus[1])) == 'X') {
-		base = 16
-		modulus = modulus[2:]
-	}
-	if _, ok := bModulus.SetString(modulus, base); !ok {
+
+	if _, ok := bModulus.SetString(modulus, 0); !ok {
 		return nil, errParseModulus
 	}
 
