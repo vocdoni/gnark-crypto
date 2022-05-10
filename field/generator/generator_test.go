@@ -103,16 +103,27 @@ func TestIntegration(t *testing.T) {
 
 }
 
+//TODO: Remove
+func genField(t *testing.T, name string, modulus string) {
+	f, err := field.NewField(name, "Element", modulus, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = GenerateFF(f, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 const LittleFieldModulus = "0x37e729c0c0cc27602b"
 
-//TODO: Remove
 func TestGenerateLittleField(t *testing.T) {
-	f, err := field.NewField("little", "Element", LittleFieldModulus, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = GenerateFF(f, "little")
-	if err != nil {
-		t.Fatal(err)
-	}
+	genField(t, "little", LittleFieldModulus)
+}
+
+const ThreeFieldModulus = "1223566544571693215011093711131306797387"
+const ThreeFieldModulusHex = "0x39882583f2efca1f645723f1f7bb6a94b"
+
+func TestGenerateThreeField(t *testing.T) {
+	genField(t, "three", ThreeFieldModulus)
 }

@@ -288,6 +288,8 @@ func (f *FFArm64) generateMul() {
 
 	for j := 0; j < f.NbWords; j++ {
 
+		f.Comment("Round " + strconv.Itoa(j))
+
 		if j%2 == 0 {
 			if j+1 < f.NbWords {
 				f.LDP(f.RegisterOffset(xPtr, 8*j), x[0], x[1] /*, fmt.Sprintf("%s, %s = x[%d], x[%d]", x[0].Name(), x[1].Name(), j, j+1)*/)
@@ -297,8 +299,6 @@ func (f *FFArm64) generateMul() {
 		}
 
 		v := x[j%2]
-
-		f.Comment("Round " + strconv.Itoa(j))
 
 		if j == 0 {
 			f.MUL(v, y[0], c0)
