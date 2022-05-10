@@ -87,7 +87,7 @@ func NewField(packageName, elementName, modulus string, useAddChain bool) (*Fiel
 	F := &Field{
 		PackageName: packageName,
 		ElementName: elementName,
-		Modulus:     modulus,
+		Modulus:     bModulus.Text(10),
 		ModulusHex:  bModulus.Text(16),
 		ModulusBig:  new(big.Int).Set(&bModulus),
 		UseAddChain: useAddChain,

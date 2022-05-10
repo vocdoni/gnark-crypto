@@ -39,5 +39,5 @@
 //
 // Modulus
 // 	0x37e729c0c0cc27602b // base 16
-// 	37e729c0c0cc27602b // base 10
+// 	1031227980685123215403 // base 10
 package little

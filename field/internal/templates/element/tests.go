@@ -1515,6 +1515,7 @@ func Benchmark{{toTitle .ElementName}}Asm{{toTitle .Operation}}(b *testing.B) {
 
 {{template "benchBinaryAsm" dict "Operation" "add" "ElementName" .ElementName }}
 {{template "benchBinaryAsm" dict "Operation" "sub" "ElementName" .ElementName }}
+{{template "benchBinaryAsm" dict "Operation" "mul" "ElementName" .ElementName }}
 
 {{template "benchUnaryAsm" dict "Operation" "neg" "ElementName" .ElementName }}
 {{template "benchUnaryAsm" dict "Operation" "double" "ElementName" .ElementName }}

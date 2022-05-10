@@ -192,13 +192,14 @@ madd1(hi, hi, a, b, c) \
 
 // madd2 (hi, lo) = a*b + c + d
 #define madd2(hi, lo, a, b, c, d) \
-madd3(a, b, c, d, $0, hi, lo) \
+madd3(hi, lo, a, b, c, d, $0) \
 
 // madd3 (hi, lo) = a*b + c + d + (e,0)
+// hi can be the same register as a, b or c.
 #define madd3(hi, lo, a, b, c, d, e) \
 	MUL   a, b, lo   \
-	UMULH a, b, hi   \
 	ADDS  c, lo, lo  \
+	UMULH a, b, hi   \
 	ADC   $0, hi, hi \
 	ADDS  d, lo, lo  \
 	ADC   e, hi, hi  \
@@ -245,7 +246,7 @@ TEXT ·mul(SB), NOSPLIT, $0-24
 	// Round 0
 	MUL   R0, y0, c0
 	UMULH R0, y0, c1
-	MUL   _qInv0, m, c0
+	MUL   _qInv0, c0, m
 	madd0(c2, m, q0, c0)
 	madd1(c1, c0, R0, y1, c1)
 	madd2(c2, z1, m, q1, c2, c0)
@@ -258,7 +259,7 @@ TEXT ·mul(SB), NOSPLIT, $0-24
 
 	// Round 1
 	madd1(c1, c0, R1, y0, z0)
-	MUL _qInv0, m, c0
+	MUL _qInv0, c0, m
 	madd0(c2, m, q0, c0)
 	madd2(c1, c0, R1, y1, c1, z1)
 	madd2(c2, z1, m, q1, c2, c0)
@@ -272,7 +273,7 @@ TEXT ·mul(SB), NOSPLIT, $0-24
 
 	// Round 2
 	madd1(c1, c0, R0, y0, z0)
-	MUL _qInv0, m, c0
+	MUL _qInv0, c0, m
 	madd0(c2, m, q0, c0)
 	madd2(c1, c0, R0, y1, c1, z1)
 	madd2(c2, z1, m, q1, c2, c0)
@@ -285,7 +286,7 @@ TEXT ·mul(SB), NOSPLIT, $0-24
 
 	// Round 3
 	madd1(c1, c0, R1, y0, z0)
-	MUL  _qInv0, m, c0
+	MUL  _qInv0, c0, m
 	madd0(c2, m, q0, c0)
 	madd2(c1, c0, R1, y1, c1, z1)
 	madd2(c2, z1, m, q1, c2, c0)
@@ -299,7 +300,7 @@ TEXT ·mul(SB), NOSPLIT, $0-24
 
 	// Round 4
 	madd1(c1, c0, R0, y0, z0)
-	MUL _qInv0, m, c0
+	MUL _qInv0, c0, m
 	madd0(c2, m, q0, c0)
 	madd2(c1, c0, R0, y1, c1, z1)
 	madd2(c2, z1, m, q1, c2, c0)
@@ -325,4 +326,23 @@ TEXT ·mul(SB), NOSPLIT, $0-24
 	storeVector(R2, z0, z1, z2, z3, z4)
 	RET
 
-#undef z1, z3, c0, m, q0, q4, q3, y1, y4, z0, z2, _qInv0, c1, q1, y0, z4, c2, q2, y2, y3
+#undef _qInv0
+#undef c0
+#undef c1
+#undef c2
+#undef m
+#undef q0
+#undef q1
+#undef q2
+#undef q3
+#undef q4
+#undef y0
+#undef y1
+#undef y2
+#undef y3
+#undef y4
+#undef z0
+#undef z1
+#undef z2
+#undef z3
+#undef z4

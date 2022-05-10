@@ -1,12 +1,14 @@
 package little
 
 import (
+	"fmt"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
 	"math/big"
 	"testing"
 )
 
+/*
 //go:noescape
 func madd2Asm(res *[2]uint64, a, b, c, d uint64)
 
@@ -21,6 +23,30 @@ func TestMadd2(t *testing.T) {
 
 	var x [2]uint64
 	madd2Asm(&x, v, y1, c1, t1)
+}*/
+
+func TestToMontSimple(t *testing.T) {
+	a := Element{1}
+	a.ToMont()
+
+	var b Element
+	b.SetOne()
+
+	if !a.Equal(&b) {
+		t.Fatal("Got", a, "expected", b)
+	}
+}
+
+func TestFromMontSimple(t *testing.T) {
+	var a Element
+	a.SetOne()
+	a.FromMont()
+
+	b := Element{1}
+
+	if !a.Equal(&b) {
+		t.Fatal("Got", a, "expected", b)
+	}
 }
 
 func TestElementMulVerySpecial(t *testing.T) {
@@ -46,6 +72,24 @@ func TestElementMulVerySpecial(t *testing.T) {
 	c.Mul(&a, &a)
 }
 
+func TestElementMul29(t *testing.T) {
+	//a = {github.com/consensys/gnark-crypto/field/generator/little.Element} len:2
+	// 0 = {uint64} 14831352495647895042
+	// 1 = {uint64} 10
+	var a Element
+	a.SetOne()
+
+	b := rSquare
+	//b := Element{29}
+
+	var c Element
+	var cRef Element
+	c.Mul(&a, &b)
+	_mulGeneric(&cRef, &a, &b)
+
+	//b.FromMont()
+}
+
 func TestElementMulSpecial(t *testing.T) {
 	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
@@ -67,12 +111,18 @@ func TestElementMulSpecial(t *testing.T) {
 			a.ToBigIntRegular(&aBig)
 			for j, b := range testValues {
 
-				var bBig, d big.Int
+				if i == 1 && j == 2 {
+					fmt.Println("dis one")
+				}
+
+				var bBig, d, e big.Int
 				b.ToBigIntRegular(&bBig)
 
 				var c Element
 				c.Mul(&a, &b)
-				d.Mul(&aBig, &bBig).Mod(&d, Modulus())
+
+				d.Mul(&aBig, &bBig)
+				d.Mod(&d, Modulus())
 
 				// checking asm against generic impl
 				var cGeneric Element
@@ -83,11 +133,15 @@ func TestElementMulSpecial(t *testing.T) {
 					t.Fatal("Mul failed special test values: asm and generic impl don't match\nFailed at (", i, ",", j, ")")
 				}
 
-				t.Log("Passed", a, b)
+				//t.Log("Passed", a, b)
 
-				/*if c.FromMont().ToBigInt(&e).Cmp(&d) != 0 {
+				if c.FromMont().ToBigInt(&e).Cmp(&d) != 0 {
+					t.Log("test case number ", i, j)
+					t.Log("Got", e, "expected", d)
+					t.Log("when testing", a, b)
+					t.Log("non-mont", aBig, bBig)
 					t.Fatal("Mul failed special test values")
-				}*/
+				}
 			}
 		}
 	}

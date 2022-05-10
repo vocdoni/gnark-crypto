@@ -159,7 +159,7 @@ TEXT ·mul(SB), NOSPLIT, $0-24
 #define y1 R12
 	// Load all of y
 	LDP x+8(FP), (R2, R3)
-loadVector(R3, y0, y1)
+	loadVector(R3, y0, y1)
 
 #define z0 R3
 #define z1 R13

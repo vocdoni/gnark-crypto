@@ -103,9 +103,11 @@ func TestIntegration(t *testing.T) {
 
 }
 
+const LittleFieldModulus = "0x37e729c0c0cc27602b"
+
 //TODO: Remove
 func TestGenerateLittleField(t *testing.T) {
-	f, err := field.NewField("little", "Element", "0x37e729c0c0cc27602b", false)
+	f, err := field.NewField("little", "Element", LittleFieldModulus, false)
 	if err != nil {
 		t.Fatal(err)
 	}

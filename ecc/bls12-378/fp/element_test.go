@@ -2395,6 +2395,29 @@ func BenchmarkElementAsmSub(b *testing.B) {
 	})
 }
 
+func BenchmarkElementAsmMul(b *testing.B) {
+	var z Element
+
+	b.ResetTimer()
+	b.Run("Generic", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			for j := 0; j < asmBenchCasesNum; j++ {
+				_mulGeneric(&z, &asmBenchA[j], &asmBenchB[j])
+			}
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("Asm", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			for j := 0; j < asmBenchCasesNum; j++ {
+				z.Mul(&asmBenchA[j], &asmBenchB[j])
+			}
+
+		}
+	})
+}
+
 func BenchmarkElementAsmNeg(b *testing.B) {
 	var z Element
 

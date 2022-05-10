@@ -39,7 +39,7 @@ import (
 // Element are assumed to be in Montgomery form in all methods
 // field modulus q =
 //
-// 37e729c0c0cc27602b
+// 1031227980685123215403
 type Element [2]uint64
 
 // Limbs number of 64 bits words needed to represent Element
@@ -57,7 +57,7 @@ var _modulus big.Int
 // Modulus returns q as a big.Int
 // q =
 //
-// 37e729c0c0cc27602b
+// 1031227980685123215403
 func Modulus() *big.Int {
 	return new(big.Int).Set(&_modulus)
 }
@@ -87,7 +87,7 @@ var bigIntPool = sync.Pool{
 }
 
 func init() {
-	_modulus.SetString("37e729c0c0cc27602b", 10)
+	_modulus.SetString("1031227980685123215403", 10)
 }
 
 // NewElement returns a new Element from a uint64 value
