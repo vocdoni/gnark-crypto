@@ -37,8 +37,6 @@ func main() {
 
 	const benchCount = 10
 	const regexp = "BBB"
-	const refBranch = "developt"
-	const newBranch = "feat-addchain"
 
 	benchFileName := "BBB." + runtime.Version() + ".txt"
 
@@ -46,6 +44,7 @@ func main() {
 	runBenches := func() {
 		// checkout(branch)
 		for _, e := range entries {
+			log.Println("processing", e.path)
 			buf.Reset()
 			count := strconv.Itoa(benchCount)
 			cmd := exec.Command("go", "test", "-timeout", "10m", "-run", "^$", "-bench", regexp, "-count", count)
@@ -64,6 +63,8 @@ func main() {
 			if err := os.WriteFile(filepath.Join(e.path, benchFileName), buf.Bytes(), 0600); err != nil {
 				log.Fatal(err)
 			}
+
+			log.Println("wrote", filepath.Join(e.path, benchFileName))
 		}
 	}
 

@@ -64,6 +64,7 @@ func GenerateFF(F *field.FieldConfig, outputDir string) error {
 		"_ops_amd64.s",
 		"_mul_adx_amd64.s",
 		"_ops_amd64.go",
+		"_mul_arm64.go",
 		"_fuzz.go",
 	}
 
@@ -122,7 +123,7 @@ func GenerateFF(F *field.FieldConfig, outputDir string) error {
 		}
 		opts := bavardOpts
 		if F.ASM {
-			opts = withBuildTag(opts, "!amd64,!arm64")
+			opts = withBuildTag(opts, "!amd64")
 		}
 		pathSrc := filepath.Join(outputDir, eName+"_mul.go")
 		if err := bavard.GenerateFromString(pathSrc, src, F, opts...); err != nil {
@@ -133,25 +134,6 @@ func GenerateFF(F *field.FieldConfig, outputDir string) error {
 	// if we generate assembly code
 	if F.ASM {
 		// we generate element_mul_amd64.go element_mul_arm64.go
-		{
-			// we generate element_mul_arm64.go
-			src := []string{
-				element.Mul,
-				element.MulDoc,
-				element.MulCIOS,
-				element.MulNoCarryARM64,
-				element.Reduce,
-			}
-			if F.NoCarrySquare {
-				src = append(src, element.SquareNoCarryARM64)
-			} else {
-				src = append(src, element.SquareNoCarry)
-			}
-			pathSrc := filepath.Join(outputDir, eName+"_mul_arm64.go")
-			if err := bavard.GenerateFromString(pathSrc, src, F, bavardOpts...); err != nil {
-				return err
-			}
-		}
 
 		// generate ops.s
 		{
