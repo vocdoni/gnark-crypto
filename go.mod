@@ -1,6 +1,6 @@
 module github.com/consensys/gnark-crypto
 
-go 1.17
+go 1.18
 
 require (
 	github.com/consensys/bavard v0.1.13
@@ -20,5 +20,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-replace "github.com/consensys/bavard" => ../bavard
