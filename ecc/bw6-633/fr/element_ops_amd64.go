@@ -41,3 +41,11 @@ func reduce(res *Element)
 //
 //go:noescape
 func Butterfly(a, b *Element)
+
+func (z *Element) Mul(x, y *Element) *Element {
+	mul(z, x, y)
+}
+
+func (z *Element) Square(x *Element) *Element {
+	mul(z, x, x)
+}

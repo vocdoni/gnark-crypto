@@ -29,6 +29,14 @@ func reduce(res *{{.ElementName}})
 //go:noescape
 func Butterfly(a, b *{{.ElementName}})
 
+func (z *{{.ElementName}}) Mul(x, y *{{.ElementName}}) *{{.ElementName}} {
+	mul(z,x,y)
+}
+
+func (z *{{.ElementName}}) Square(x *{{.ElementName}}) *{{.ElementName}} {
+	mul(z, x, x)
+}
+
 {{end}}
 
 
