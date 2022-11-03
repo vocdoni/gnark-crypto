@@ -21,7 +21,7 @@ func main() {
 	// quick and dirty helper to benchmark field elements accross branches
 
 	var entries []entry
-	err := filepath.WalkDir("../../ecc/bn254", func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir("../../ecc", func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
 			if d.Name() == "fp" || d.Name() == "fr" {
 				entries = append(entries, entry{entry: d, path: path})
