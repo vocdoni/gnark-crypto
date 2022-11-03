@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"io"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -40,8 +40,10 @@ func main() {
 	const refBranch = "developt"
 	const newBranch = "feat-addchain"
 
+	benchFileName := "BBB." + runtime.Version() + ".txt"
+
 	var buf bytes.Buffer
-	runBenches := func(branch string) {
+	runBenches := func() {
 		// checkout(branch)
 		for _, e := range entries {
 			buf.Reset()
@@ -59,31 +61,30 @@ func main() {
 				log.Fatal(err)
 			}
 
-			if err := os.WriteFile(filepath.Join(e.path, branch+"."+runtime.Version()+".txt"), buf.Bytes(), 0600); err != nil {
+			if err := os.WriteFile(filepath.Join(e.path, benchFileName), buf.Bytes(), 0600); err != nil {
 				log.Fatal(err)
 			}
-			io.Copy(os.Stdout, &buf)
 		}
 	}
 
-	runBenches("BBB")
+	runBenches()
 
 	// runBenches(refBranch)
 	// runBenches(newBranch)
 
-	// for _, e := range entries {
-	// 	fmt.Println()
-	// 	log.Println("comparing", e.path, regexp)
-	// 	cmd := exec.Command("benchstat", "-alpha", "2.0", refBranch+".txt", newBranch+".txt")
-	// 	cmd.Dir = e.path
-	// 	cmd.Stdout = os.Stdout
-	// 	cmd.Stderr = os.Stderr
-	// 	err := cmd.Run()
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	fmt.Println()
-	// }
+	for _, e := range entries {
+		fmt.Println()
+		log.Println("benchstat", e.path, regexp)
+		cmd := exec.Command("benchstat", benchFileName)
+		cmd.Dir = e.path
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println()
+	}
 }
 
 func checkout(branch string) {
