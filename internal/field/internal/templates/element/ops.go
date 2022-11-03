@@ -31,10 +31,12 @@ func Butterfly(a, b *{{.ElementName}})
 
 func (z *{{.ElementName}}) Mul(x, y *{{.ElementName}}) *{{.ElementName}} {
 	mul(z,x,y)
+	return z
 }
 
 func (z *{{.ElementName}}) Square(x *{{.ElementName}}) *{{.ElementName}} {
 	mul(z, x, x)
+	return z
 }
 
 {{end}}
