@@ -2151,6 +2151,20 @@ func BenchmarkBBB_MUL_NOCARRY(b *testing.B) {
 	benchRes{{.ElementName}} = x 
 }
 
+func BenchmarkBBB_MUL_STD(b *testing.B) {
+	x := {{.ElementName}}{
+		{{- range $i := .RSquare}}
+		{{$i}},{{end}}
+	}
+	var y {{.ElementName}}
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		x.Mul(&x, &y)
+	}
+	benchRes{{.ElementName}} = x 
+}
+
 func BenchmarkBBB_MUL_CIOS(b *testing.B) {
 	x := {{.ElementName}}{
 		{{- range $i := .RSquare}}
@@ -2192,6 +2206,87 @@ func BenchmarkBBB_MUL_ARM_NOCARRY_2(b *testing.B) {
 	}
 	benchRes{{.ElementName}} = x 
 }
+
+func BenchmarkBBB_MUL_SOS_ROLLED(b *testing.B) {
+	x := {{.ElementName}}{
+		{{- range $i := .RSquare}}
+		{{$i}},{{end}}
+	}
+	var y {{.ElementName}}
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BBB_MUL_SOS_ROLLED(&x, &x, &y)
+	}
+	benchRes{{.ElementName}} = x 
+}
+
+
+
+func BenchmarkBBB_MUL_CIOS_ROLLED(b *testing.B) {
+	x := {{.ElementName}}{
+		{{- range $i := .RSquare}}
+		{{$i}},{{end}}
+	}
+	var y {{.ElementName}}
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BBB_MUL_CIOS_ROLLED(&x, &x, &y)
+	}
+	benchRes{{.ElementName}} = x 
+}
+
+func BBB_MUL_SOS_ROLLED(z, x, y *Element) {
+	var t [Limbs*2 + 2]uint64
+
+	for i := 0; i < Limbs; i++ {
+		C := uint64(0)
+		for j := 0; j < Limbs; j++ {
+			C, t[i+j] = madd2(x[j], y[i], t[i+j], C)
+		}
+		t[i+Limbs] = C
+	}
+
+	for i := 0; i < Limbs; i++ {
+		C := uint64(0)
+		m := t[i] * qInvNeg
+		for j := 0; j < Limbs; j++ {
+			C, t[i+j] = madd2(qElement[j], m, t[i+j], C)
+		}
+		// TODO propagate carry ADD
+		k := i + Limbs
+		var c uint64
+		t[k], c = bits.Add64(t[k], C, 0)
+		k++
+		for ; k < len(t); k++ {
+			t[k], c = bits.Add64(t[k], 0, c)
+		}
+	}
+	copy(z[:], t[Limbs:])
+	// *z = t
+	{{ template "reduce"  . }}
+}
+
+func BBB_MUL_CIOS_ROLLED(z, x, y *Element) {
+	var A, C uint64
+	var t Element
+	for i := 0; i < Limbs; i++ {
+		A, t[0] = madd1(x[0], y[i], t[0])
+		m := t[0] * qInvNeg
+		C = madd0(m, q0, t[0])
+		for j := 1; j < Limbs; j++ {
+			A, t[j] = madd2(x[j], y[i], t[j], A)
+			C, t[j-1] = madd2(qElement[j], m, t[j], C)
+		}
+		t[Limbs-1] = C + A
+	}
+
+	*z = t
+	// if z ⩾ q → z -= q
+	{{ template "reduce"  . }}
+}
+
 
 {{- end}}
 

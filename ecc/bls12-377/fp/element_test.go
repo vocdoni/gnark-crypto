@@ -3656,6 +3656,24 @@ func BenchmarkBBB_MUL_NOCARRY(b *testing.B) {
 	benchResElement = x
 }
 
+func BenchmarkBBB_MUL_STD(b *testing.B) {
+	x := Element{
+		13224372171368877346,
+		227991066186625457,
+		2496666625421784173,
+		13825906835078366124,
+		9475172226622360569,
+		30958721782860680,
+	}
+	var y Element
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		x.Mul(&x, &y)
+	}
+	benchResElement = x
+}
+
 func BenchmarkBBB_MUL_CIOS(b *testing.B) {
 	x := Element{
 		13224372171368877346,
@@ -3708,6 +3726,112 @@ func BenchmarkBBB_MUL_ARM_NOCARRY_2(b *testing.B) {
 		BBB_MUL_ARM_NOCARRY_2(&x, &x, &y)
 	}
 	benchResElement = x
+}
+
+func BenchmarkBBB_MUL_SOS_ROLLED(b *testing.B) {
+	x := Element{
+		13224372171368877346,
+		227991066186625457,
+		2496666625421784173,
+		13825906835078366124,
+		9475172226622360569,
+		30958721782860680,
+	}
+	var y Element
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BBB_MUL_SOS_ROLLED(&x, &x, &y)
+	}
+	benchResElement = x
+}
+
+func BenchmarkBBB_MUL_CIOS_ROLLED(b *testing.B) {
+	x := Element{
+		13224372171368877346,
+		227991066186625457,
+		2496666625421784173,
+		13825906835078366124,
+		9475172226622360569,
+		30958721782860680,
+	}
+	var y Element
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BBB_MUL_CIOS_ROLLED(&x, &x, &y)
+	}
+	benchResElement = x
+}
+
+func BBB_MUL_SOS_ROLLED(z, x, y *Element) {
+	var t [Limbs*2 + 2]uint64
+
+	for i := 0; i < Limbs; i++ {
+		C := uint64(0)
+		for j := 0; j < Limbs; j++ {
+			C, t[i+j] = madd2(x[j], y[i], t[i+j], C)
+		}
+		t[i+Limbs] = C
+	}
+
+	for i := 0; i < Limbs; i++ {
+		C := uint64(0)
+		m := t[i] * qInvNeg
+		for j := 0; j < Limbs; j++ {
+			C, t[i+j] = madd2(qElement[j], m, t[i+j], C)
+		}
+		// TODO propagate carry ADD
+		k := i + Limbs
+		var c uint64
+		t[k], c = bits.Add64(t[k], C, 0)
+		k++
+		for ; k < len(t); k++ {
+			t[k], c = bits.Add64(t[k], 0, c)
+		}
+	}
+	copy(z[:], t[Limbs:])
+	// *z = t
+
+	// if z ⩾ q → z -= q
+	if !z.smallerThanModulus() {
+		var b uint64
+		z[0], b = bits.Sub64(z[0], q0, 0)
+		z[1], b = bits.Sub64(z[1], q1, b)
+		z[2], b = bits.Sub64(z[2], q2, b)
+		z[3], b = bits.Sub64(z[3], q3, b)
+		z[4], b = bits.Sub64(z[4], q4, b)
+		z[5], _ = bits.Sub64(z[5], q5, b)
+	}
+}
+
+func BBB_MUL_CIOS_ROLLED(z, x, y *Element) {
+	var A, C uint64
+	var t Element
+	for i := 0; i < Limbs; i++ {
+		A, t[0] = madd1(x[0], y[i], t[0])
+		m := t[0] * qInvNeg
+		C = madd0(m, q0, t[0])
+		for j := 1; j < Limbs; j++ {
+			A, t[j] = madd2(x[j], y[i], t[j], A)
+			C, t[j-1] = madd2(qElement[j], m, t[j], C)
+		}
+		t[Limbs-1] = C + A
+	}
+
+	*z = t
+	// if z ⩾ q → z -= q
+
+	// if z ⩾ q → z -= q
+	if !z.smallerThanModulus() {
+		var b uint64
+		z[0], b = bits.Sub64(z[0], q0, 0)
+		z[1], b = bits.Sub64(z[1], q1, b)
+		z[2], b = bits.Sub64(z[2], q2, b)
+		z[3], b = bits.Sub64(z[3], q3, b)
+		z[4], b = bits.Sub64(z[4], q4, b)
+		z[5], _ = bits.Sub64(z[5], q5, b)
+	}
 }
 
 func TestElementInversionApproximation(t *testing.T) {
