@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -58,7 +59,7 @@ func main() {
 				log.Fatal(err)
 			}
 
-			if err := os.WriteFile(filepath.Join(e.path, branch+".txt"), buf.Bytes(), 0600); err != nil {
+			if err := os.WriteFile(filepath.Join(e.path, branch+"."+runtime.Version()+".txt"), buf.Bytes(), 0600); err != nil {
 				log.Fatal(err)
 			}
 			io.Copy(os.Stdout, &buf)
