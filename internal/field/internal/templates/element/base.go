@@ -561,6 +561,10 @@ func (z *{{.ElementName}}) _mulGeneric(x,y *{{.ElementName}})  *{{.ElementName}}
 	return z
 }
 
+func _mulGeneric(z, x,y *{{.ElementName}}) {
+	z._mulGeneric(x, y)
+}
+
 
 func _fromMontGeneric(z *{{.ElementName}}) {
 	// the following lines implement z = z * 1

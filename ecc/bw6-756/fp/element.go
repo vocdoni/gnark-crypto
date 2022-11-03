@@ -1043,6 +1043,10 @@ func (z *Element) _mulGeneric(x, y *Element) *Element {
 	return z
 }
 
+func _mulGeneric(z, x, y *Element) {
+	z._mulGeneric(x, y)
+}
+
 func _fromMontGeneric(z *Element) {
 	// the following lines implement z = z * 1
 	// with a modified CIOS montgomery multiplication
