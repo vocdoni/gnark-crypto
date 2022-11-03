@@ -44,8 +44,10 @@ func Butterfly(a, b *Element)
 
 func (z *Element) Mul(x, y *Element) *Element {
 	mul(z, x, y)
+	return z
 }
 
 func (z *Element) Square(x *Element) *Element {
 	mul(z, x, x)
+	return z
 }
