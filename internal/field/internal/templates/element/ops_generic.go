@@ -39,11 +39,6 @@ func Butterfly(a, b *{{.ElementName}}) {
 	_butterflyGeneric(a, b)
 }
 
-{{- if ne .NbWords 1}}
-func mul(z, x, y *{{.ElementName}}) {
-	_mulGeneric(z, x, y)
-}
-{{- end}}
 
 func fromMont(z *{{.ElementName}} ) {
 	_fromMontGeneric(z)

@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 // -------------------------------------------------------------------------------------------------
 // benchmarks
 // most benchmarks are rudimentary and should sample a large number of random inputs
@@ -380,6 +379,12 @@ func init() {
 		a := q{{.ElementName}}
 		a[{{.NbWordsLastIndex}}] = 0
 		staticTestValues = append(staticTestValues, a)
+	}
+
+	for _, sv := range staticTestValues {
+		if !sv.smallerThanModulus() {
+			panic("invalid static test value") // shouldn't happen.
+		}
 	}
 
 }
@@ -835,7 +840,7 @@ func Test{{toTitle .all.ElementName}}{{.Op}}(t *testing.T) {
 				{{if .GenericOp}}
 					// checking generic impl against asm path
 					var cGeneric {{.all.ElementName}}
-					{{.GenericOp}}(&cGeneric, &a.element, &r)
+					cGeneric.{{.GenericOp}}( &a.element, &r)
 					if !cGeneric.Equal(&c) {
 						// need to give context to failing error.
 						return false
@@ -871,7 +876,7 @@ func Test{{toTitle .all.ElementName}}{{.Op}}(t *testing.T) {
 		func(a, b testPair{{.all.ElementName}}) bool {
 			var c,d {{.all.ElementName}}
 			c.{{.Op}}(&a.element, &b.element)
-			{{.GenericOp}}(&d, &a.element, &b.element)
+			d.{{.GenericOp}}( &a.element, &b.element)
 			return c.Equal(&d)
 		},
 		genA,
@@ -913,7 +918,7 @@ func Test{{toTitle .all.ElementName}}{{.Op}}(t *testing.T) {
 				{{if .GenericOp}}
 					// checking asm against generic impl
 					var cGeneric {{.all.ElementName}}
-					{{.GenericOp}}(&cGeneric, &a, &b)
+					cGeneric.{{.GenericOp}}( &a, &b)
 					if !cGeneric.Equal(&c) {
 						t.Fatal("{{.Op}} failed special test values: asm and generic impl don't match")
 					}
@@ -1003,7 +1008,7 @@ func Test{{toTitle .all.ElementName}}{{.Op}}(t *testing.T) {
 		func(a testPair{{.all.ElementName}}) bool {
 			var c,d {{.all.ElementName}}
 			c.{{.Op}}(&a.element)
-			{{.GenericOp}}(&d, &a.element)
+			d.{{.GenericOp}}( &a.element)
 			return c.Equal(&d)
 		},
 		genA,
@@ -1039,7 +1044,7 @@ func Test{{toTitle .all.ElementName}}{{.Op}}(t *testing.T) {
 			{{if .GenericOp}}
 				// checking asm against generic impl
 				var cGeneric {{.all.ElementName}}
-				{{.GenericOp}}(&cGeneric, &a)
+				cGeneric.{{.GenericOp}}( &a)
 				if !cGeneric.Equal(&c) {
 					t.Fatal("{{.Op}} failed special test values: asm and generic impl don't match")
 				}
@@ -1668,6 +1673,526 @@ func (z *{{.ElementName}}) assertMatchVeryBigInt(t *testing.T, aHi uint64, aInt 
 		t.Error(err)
 	}
 }
+{{- end}}
+
+
+
+// TEMPORARY SECTION FOR BENCHMARKS -- 
+
+
+{{ define "SQUARE_NOCARRY" }}
+var {{range $i := .all.NbWordsIndexesFull}}t{{$i}}{{- if ne $i $.all.NbWordsLastIndex}},{{- end}}{{- end}} uint64
+var {{range $i := $.all.NbWordsIndexesFull}}u{{$i}}{{- if ne $i $.all.NbWordsLastIndex}},{{- end}}{{- end}} uint64
+var {{range $i := interval 0 (add $.all.NbWordsLastIndex 1)}}lo{{$i}}{{- if ne $i $.all.NbWordsLastIndex}},{{- end}}{{- end}} uint64
+
+// note that if hi, _ = bits.Mul64() didn't generate
+// UMULH and MUL, (but just UMULH) we could use same pattern
+// as in mulRaw and reduce the stack space of this function (no need for lo..)
+
+{{- range $i := .all.NbWordsIndexesFull}}
+{
+
+	{{$jStart := add $i 1}}
+	{{$jEnd := add $.all.NbWordsLastIndex 1}}
+
+	var c0, c2 uint64
+
+
+	// for j=i+1 to N-1
+	//     p,C,t[j] = 2*a[j]*a[i] + t[j] + (p,C)
+	// A = C
+
+	{{- if eq $i 0}}
+		u{{$i}}, lo1 = bits.Mul64(x[{{$i}}], x[{{$i}}])
+		{{- range $j := interval $jStart $jEnd}}
+			u{{$j}}, t{{$j}} = bits.Mul64(x[{{$j}}], x[{{$i}}])
+		{{- end}}
+
+		// propagate lo, from t[j] to end, twice.
+		{{- range $j := interval $jStart $jEnd}}
+			{{- if eq $j $jStart}}
+				t{{$j}}, c0 = bits.Add64(t{{$j}}, t{{$j}}, 0)
+			{{- else }}
+				t{{$j}}, c0 = bits.Add64(t{{$j}}, t{{$j}}, c0)
+			{{- end}}
+			{{- if eq $j $.all.NbWordsLastIndex}}
+				c2, _ = bits.Add64(c2, 0, c0)
+			{{- end}}
+		{{- end}}
+
+		t{{$i}}, c0 = bits.Add64( lo1,t{{$i}}, 0)
+	{{- else}}
+		{{- range $j := interval (sub $jStart 1) $jEnd}}
+			u{{$j}}, lo{{$j}} = bits.Mul64(x[{{$j}}], x[{{$i}}])
+		{{- end}}
+
+		// propagate lo, from t[j] to end, twice.
+		{{- range $j := interval $jStart $jEnd}}
+			{{- if eq $j $jStart}}
+				lo{{$j}}, c0 = bits.Add64(lo{{$j}}, lo{{$j}}, 0)
+			{{- else }}
+				lo{{$j}}, c0 = bits.Add64(lo{{$j}}, lo{{$j}}, c0)
+			{{- end}}
+			{{- if eq $j $.all.NbWordsLastIndex}}
+				c2, _ = bits.Add64(c2, 0, c0)
+			{{- end}}
+		{{- end}}
+		{{- range $j := interval $jStart $jEnd}}
+			{{- if eq $j $jStart}}
+				t{{$j}}, c0 = bits.Add64(lo{{$j}}, t{{$j}}, 0)
+			{{- else }}
+				t{{$j}}, c0 = bits.Add64(lo{{$j}}, t{{$j}}, c0)
+			{{- end}}
+			{{- if eq $j $.all.NbWordsLastIndex}}
+				c2, _ = bits.Add64(c2, 0, c0)
+			{{- end}}
+		{{- end}}
+
+		t{{$i}}, c0 = bits.Add64( lo{{$i}},t{{$i}}, 0)
+	{{- end}}
+
+
+	// propagate u{{$i}} + hi
+	{{- range $j := interval $jStart $jEnd}}
+		t{{$j}}, c0 = bits.Add64(u{{sub $j 1}}, t{{$j}}, c0)
+	{{- end}}
+	c2, _ = bits.Add64(u{{$.all.NbWordsLastIndex}}, c2, c0)
+
+	// hi again
+	{{- range $j := interval $jStart $jEnd}}
+		{{- if eq $j $.all.NbWordsLastIndex}}
+		c2, _ = bits.Add64(c2, u{{$j}}, {{- if eq $j $jStart}} 0 {{- else}}c0{{- end}})
+		{{- else if eq $j $jStart}}
+			t{{add $j 1}}, c0 = bits.Add64(u{{$j}}, t{{add $j 1}}, 0)
+		{{- else }}
+			t{{add $j 1}}, c0 = bits.Add64(u{{$j}}, t{{add $j 1}}, c0)
+		{{- end}}
+	{{- end}}
+
+	{{- $k := $.all.NbWordsLastIndex}}
+
+	// this part is unchanged.
+	m := qInvNeg * t0
+	{{- range $j := $.all.NbWordsIndexesFull}}
+		u{{$j}}, lo{{$j}} = bits.Mul64(m, q{{$j}})
+	{{- end}}
+	{{- range $j := $.all.NbWordsIndexesFull}}
+	{{- if ne $j 0}}
+		{{- if eq $j 1}}
+			_, c0 = bits.Add64(t0, lo{{sub $j 1}}, 0)
+		{{- else}}
+			t{{sub $j 2}}, c0 = bits.Add64(t{{sub $j 1}}, lo{{sub $j 1}}, c0)
+		{{- end}}
+	{{- end}}
+	{{- end}}
+	t{{sub $.all.NbWordsLastIndex 1}}, c0 = bits.Add64(0, lo{{$.all.NbWordsLastIndex}}, c0) 
+	u{{$k}}, _ = bits.Add64(u{{$k}}, 0, c0)
+
+	{{- range $j := $.all.NbWordsIndexesFull}}
+		{{- if eq $j 0}}
+			t{{$j}}, c0 = bits.Add64(u{{$j}}, t{{$j}}, 0)
+		{{- else if eq $j $.all.NbWordsLastIndex}}
+			c2, _ = bits.Add64(c2, 0, c0)
+		{{- else}}
+			t{{$j}}, c0 = bits.Add64(u{{$j}}, t{{$j}}, c0)
+		{{- end}}
+	{{- end}}
+
+	{{- $k := sub $.all.NbWordsLastIndex 0}}
+	{{- $l := sub $.all.NbWordsLastIndex 1}}
+	t{{$l}}, c0 = bits.Add64(t{{$k}}, t{{$l}}, 0)
+	t{{$k}}, _ = bits.Add64(u{{$k}}, c2, c0)
+}
+{{- end}}
+
+
+{{- range $i := $.all.NbWordsIndexesFull}}
+z[{{$i}}] = t{{$i}}
+{{- end}}
+
+{{ end }}
+
+
+{{ define "MUL_NOCARRY" }}
+var t [{{.all.NbWords}}]uint64
+var c [3]uint64
+{{- range $j := .all.NbWordsIndexesFull}}
+{
+	// round {{$j}}
+	v := {{$.V1}}[{{$j}}]
+	{{- if eq $j $.all.NbWordsLastIndex}}
+		c[1], c[0] = madd1(v, {{$.V2}}[0], t[0])
+		m := c[0] * qInvNeg
+		c[2] = madd0(m, q0, c[0])
+		{{- if eq $.all.NbWords 1}}
+			z[0], _ = madd3(m, q0, c[0], c[2], c[1])
+		{{- else}}
+			{{- range $i := $.all.NbWordsIndexesNoZero}}
+				c[1], c[0] = madd2(v, {{$.V2}}[{{$i}}],  c[1], t[{{$i}}])
+				{{- if eq $i $.all.NbWordsLastIndex}}
+					z[{{sub $.all.NbWords 1}}], z[{{sub $i 1}}] = madd3(m, q{{$i}}, c[0], c[2], c[1])
+				{{- else}}
+					c[2], z[{{sub $i 1}}] = madd2(m, q{{$i}},  c[2], c[0])
+				{{- end}}
+			{{- end}}
+		{{- end}}
+	{{- else if eq $j 0}}
+		c[1], c[0] = bits.Mul64(v, {{$.V2}}[0])
+		m := c[0] * qInvNeg
+		c[2] = madd0(m, q0, c[0])
+		{{- range $i := $.all.NbWordsIndexesNoZero}}
+			c[1], c[0] = madd1(v, {{$.V2}}[{{$i}}], c[1])
+			{{- if eq $i $.all.NbWordsLastIndex}}
+				t[{{sub $.all.NbWords 1}}], t[{{sub $i 1}}]  = madd3(m, q{{$i}}, c[0], c[2], c[1])
+			{{- else}}
+				c[2], t[{{sub $i 1}}] = madd2(m, q{{$i}}, c[2], c[0])
+			{{- end}}
+		{{- end}}
+	{{- else}}
+		c[1], c[0] = madd1(v, {{$.V2}}[0], t[0])
+		m := c[0] * qInvNeg
+		c[2] = madd0(m, q0, c[0])
+		{{- range $i := $.all.NbWordsIndexesNoZero}}
+			c[1], c[0] = madd2(v, {{$.V2}}[{{$i}}], c[1], t[{{$i}}])
+			{{- if eq $i $.all.NbWordsLastIndex}}
+				t[{{sub $.all.NbWords 1}}], t[{{sub $i 1}}] = madd3(m, q{{$i}}, c[0], c[2], c[1])
+			{{- else}}
+				c[2], t[{{sub $i 1}}] = madd2(m, q{{$i}}, c[2], c[0])
+			{{- end}}
+		{{- end}}
+	{{-  end }}
+}
+{{- end}}
+{{ end }}
+
+
+{{ define "MUL_CIOS" }}
+	var t [{{add .all.NbWords 1}}]uint64
+	var D uint64
+	var m, C uint64
+
+	{{- range $j := .all.NbWordsIndexesFull}}
+		// -----------------------------------
+		// First loop
+		{{ if eq $j 0}}
+			C, t[0] = bits.Mul64({{$.V2}}[{{$j}}], {{$.V1}}[0])
+			{{- range $i := $.all.NbWordsIndexesNoZero}}
+				C, t[{{$i}}] = madd1({{$.V2}}[{{$j}}], {{$.V1}}[{{$i}}], C)
+			{{- end}}
+		{{ else }}
+			C, t[0] = madd1({{$.V2}}[{{$j}}], {{$.V1}}[0], t[0])
+			{{- range $i := $.all.NbWordsIndexesNoZero}}
+				C, t[{{$i}}] = madd2({{$.V2}}[{{$j}}], {{$.V1}}[{{$i}}], t[{{$i}}], C)
+			{{- end}}
+		{{ end }}
+		t[{{$.all.NbWords}}], D = bits.Add64(t[{{$.all.NbWords}}], C, 0)
+
+		// m = t[0]n'[0] mod W
+		m = t[0] * qInvNeg
+
+		// -----------------------------------
+		// Second loop
+		C = madd0(m, q0, t[0])
+		{{- range $i := $.all.NbWordsIndexesNoZero}}
+				C, t[{{sub $i 1}}] = madd2(m, q{{$i}}, t[{{$i}}], C)
+		{{- end}}
+
+		 t[{{sub $.all.NbWords 1}}], C = bits.Add64(t[{{$.all.NbWords}}], C, 0)
+		 t[{{$.all.NbWords}}], _ = bits.Add64(0, D, C)
+	{{- end}}
+
+
+	if t[{{$.all.NbWords}}] != 0 {
+		// we need to reduce, we have a result on {{add 1 $.all.NbWords}} words
+		{{- if gt $.all.NbWords 1}}
+		var b uint64
+		{{- end}}
+		z[0], {{- if gt $.all.NbWords 1}}b{{- else}}_{{- end}} = bits.Sub64(t[0], q0, 0)
+		{{- range $i := .all.NbWordsIndexesNoZero}}
+			{{-  if eq $i $.all.NbWordsLastIndex}}
+				z[{{$i}}], _ = bits.Sub64(t[{{$i}}], q{{$i}}, b)
+			{{-  else  }}
+				z[{{$i}}], b = bits.Sub64(t[{{$i}}], q{{$i}}, b)
+			{{- end}}
+		{{- end}}
+		return 
+	}
+
+	// copy t into z 
+	{{- range $i := $.all.NbWordsIndexesFull}}
+		z[{{$i}}] = t[{{$i}}]
+	{{- end}}
+
+{{ end }}
+
+
+{{ define "MUL_ARM_NOCARRY_1" }}
+var {{range $i := .all.NbWordsIndexesFull}}t{{$i}}{{- if ne $i $.all.NbWordsLastIndex}},{{- end}}{{- end}} uint64
+var {{range $i := .all.NbWordsIndexesFull}}u{{$i}}{{- if ne $i $.all.NbWordsLastIndex}},{{- end}}{{- end}} uint64
+var {{range $i := .all.NbWordsIndexesFull}}v{{$i}}{{- if ne $i $.all.NbWordsLastIndex}},{{- end}}{{- end}} uint64
+
+{{- range $j := $.all.NbWordsIndexesFull}}
+		v{{$j}} = {{$.V2}}[{{$j}}]
+	{{- end}}
+
+{{- range $i := .all.NbWordsIndexesFull}}
+{
+	var c0, c1, c2 uint64
+	v := {{$.V1}}[{{$i}}]
+	{{- if eq $i 0}}
+		{{- range $j := $.all.NbWordsIndexesFull}}
+			u{{$j}}, t{{$j}} = bits.Mul64(v, v{{$j}})
+		{{- end}}
+	{{- else}}
+		{{- range $j := $.all.NbWordsIndexesFull}}
+			u{{$j}}, c1 = bits.Mul64(v, v{{$j}})
+			{{- if eq $j 0}}
+				t{{$j}}, c0 = bits.Add64(c1, t{{$j}}, 0)
+			{{- else }}
+				t{{$j}}, c0 = bits.Add64(c1, t{{$j}}, c0)
+			{{- end}}
+			{{- if eq $j $.all.NbWordsLastIndex}}
+				{{/* yes, we're tempted to write c2 = c0, but that slow the whole MUL by 20% */}}
+				c2, _ = bits.Add64(0, 0, c0)
+			{{- end}}
+		{{- end}}
+	{{- end}}
+
+	{{- range $j := $.all.NbWordsIndexesFull}}
+	{{- if eq $j 0}}
+		t{{add $j 1}}, c0 = bits.Add64(u{{$j}}, t{{add $j 1}}, 0)
+	{{- else if eq $j $.all.NbWordsLastIndex}}
+		{{- if eq $i 0}}
+			c2, _ = bits.Add64(u{{$j}}, 0, c0)
+		{{- else}}
+			c2, _ = bits.Add64(u{{$j}},c2, c0)
+		{{- end}}
+	{{- else }}
+		t{{add $j 1}}, c0 = bits.Add64(u{{$j}}, t{{add $j 1}}, c0)
+	{{- end}}
+	{{- end}}
+	
+	{{- $k := $.all.NbWordsLastIndex}}
+
+	m := qInvNeg * t0
+
+	u0, c1 = bits.Mul64(m, q0)
+	{{- range $j := $.all.NbWordsIndexesFull}}
+	{{- if ne $j 0}}
+		{{- if eq $j 1}}
+			_, c0 = bits.Add64(t0, c1, 0)
+		{{- else}}
+			t{{sub $j 2}}, c0 = bits.Add64(t{{sub $j 1}}, c1, c0)
+		{{- end}}
+		u{{$j}}, c1 = bits.Mul64(m, q{{$j}})
+	{{- end}}
+	{{- end}}
+	{{/* TODO @gbotrel it seems this can create a carry (c0) -- study the bounds */}}
+	t{{sub $.all.NbWordsLastIndex 1}}, c0 = bits.Add64(0, c1, c0) 
+	u{{$k}}, _ = bits.Add64(u{{$k}}, 0, c0)
+
+	{{- range $j := $.all.NbWordsIndexesFull}}
+		{{- if eq $j 0}}
+			t{{$j}}, c0 = bits.Add64(u{{$j}}, t{{$j}}, 0)
+		{{- else if eq $j $.all.NbWordsLastIndex}}
+			c2, _ = bits.Add64(c2, 0, c0)
+		{{- else}}
+			t{{$j}}, c0 = bits.Add64(u{{$j}}, t{{$j}}, c0)
+		{{- end}}
+	{{- end}}
+
+	{{- $l := sub $.all.NbWordsLastIndex 1}}
+	t{{$l}}, c0 = bits.Add64(t{{$k}}, t{{$l}}, 0)
+	t{{$k}}, _ = bits.Add64(u{{$k}}, c2, c0)
+
+}
+{{- end}}
+
+
+{{- range $i := $.all.NbWordsIndexesFull}}
+z[{{$i}}] = t{{$i}}
+{{- end}}
+
+{{ end }}
+
+
+{{ define "MUL_ARM_NOCARRY_2" }}
+var {{range $i := .all.NbWordsIndexesFull}}t{{$i}}{{- if ne $i $.all.NbWordsLastIndex}},{{- end}}{{- end}} uint64
+var {{range $i := .all.NbWordsIndexesFull}}u{{$i}}{{- if ne $i $.all.NbWordsLastIndex}},{{- end}}{{- end}} uint64
+{{- range $i := .all.NbWordsIndexesFull}}
+{
+	var c0, c1, c2 uint64
+	v := {{$.V1}}[{{$i}}]
+	{{- if eq $i 0}}
+		{{- range $j := $.all.NbWordsIndexesFull}}
+			u{{$j}}, t{{$j}} = bits.Mul64(v, {{$.V2}}[{{$j}}])
+		{{- end}}
+	{{- else}}
+		{{- range $j := $.all.NbWordsIndexesFull}}
+			u{{$j}}, c1 = bits.Mul64(v, {{$.V2}}[{{$j}}])
+			{{- if eq $j 0}}
+				t{{$j}}, c0 = bits.Add64(c1, t{{$j}}, 0)
+			{{- else }}
+				t{{$j}}, c0 = bits.Add64(c1, t{{$j}}, c0)
+			{{- end}}
+			{{- if eq $j $.all.NbWordsLastIndex}}
+				{{/* yes, we're tempted to write c2 = c0, but that slow the whole MUL by 20% */}}
+				c2, _ = bits.Add64(0, 0, c0)
+			{{- end}}
+		{{- end}}
+	{{- end}}
+
+	{{- range $j := $.all.NbWordsIndexesFull}}
+	{{- if eq $j 0}}
+		t{{add $j 1}}, c0 = bits.Add64(u{{$j}}, t{{add $j 1}}, 0)
+	{{- else if eq $j $.all.NbWordsLastIndex}}
+		{{- if eq $i 0}}
+			c2, _ = bits.Add64(u{{$j}}, 0, c0)
+		{{- else}}
+			c2, _ = bits.Add64(u{{$j}},c2, c0)
+		{{- end}}
+	{{- else }}
+		t{{add $j 1}}, c0 = bits.Add64(u{{$j}}, t{{add $j 1}}, c0)
+	{{- end}}
+	{{- end}}
+	
+	{{- $k := $.all.NbWordsLastIndex}}
+
+	m := qInvNeg * t0
+
+	u0, c1 = bits.Mul64(m, q0)
+	{{- range $j := $.all.NbWordsIndexesFull}}
+	{{- if ne $j 0}}
+		{{- if eq $j 1}}
+			_, c0 = bits.Add64(t0, c1, 0)
+		{{- else}}
+			t{{sub $j 2}}, c0 = bits.Add64(t{{sub $j 1}}, c1, c0)
+		{{- end}}
+		u{{$j}}, c1 = bits.Mul64(m, q{{$j}})
+	{{- end}}
+	{{- end}}
+	{{/* TODO @gbotrel it seems this can create a carry (c0) -- study the bounds */}}
+	t{{sub $.all.NbWordsLastIndex 1}}, c0 = bits.Add64(0, c1, c0) 
+	u{{$k}}, _ = bits.Add64(u{{$k}}, 0, c0)
+
+	{{- range $j := $.all.NbWordsIndexesFull}}
+		{{- if eq $j 0}}
+			t{{$j}}, c0 = bits.Add64(u{{$j}}, t{{$j}}, 0)
+		{{- else if eq $j $.all.NbWordsLastIndex}}
+			c2, _ = bits.Add64(c2, 0, c0)
+		{{- else}}
+			t{{$j}}, c0 = bits.Add64(u{{$j}}, t{{$j}}, c0)
+		{{- end}}
+	{{- end}}
+
+	{{- $l := sub $.all.NbWordsLastIndex 1}}
+	t{{$l}}, c0 = bits.Add64(t{{$k}}, t{{$l}}, 0)
+	t{{$k}}, _ = bits.Add64(u{{$k}}, c2, c0)
+
+}
+{{- end}}
+
+
+{{- range $i := $.all.NbWordsIndexesFull}}
+z[{{$i}}] = t{{$i}}
+{{- end}}
+
+{{ end }}
+
+{{- if ne $.NbWords 1}}
+
+func BBB_SQUARE_NOCARRY(z,x *Element) {
+	{{ template "SQUARE_NOCARRY" dict "all" . "V1" "x" "V2" "x"}}
+	{{ template "reduce"  . }}
+}
+
+
+func BenchmarkBBB_SQUARE_NOCARRY(b *testing.B) {
+	var r {{.ElementName}}
+	r.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BBB_SQUARE_NOCARRY(&r, &r)
+	}
+	benchRes{{.ElementName}} = r 
+}
+
+
+func BBB_MUL_NOCARRY(z,x,y *Element) {
+	{{ template "MUL_NOCARRY" dict "all" . "V1" "x" "V2" "y"}}
+	{{ template "reduce"  . }}
+}
+
+func BBB_MUL_CIOS(z,x,y *Element) {
+	{{ template "MUL_CIOS" dict "all" . "V1" "x" "V2" "y"}}
+	{{ template "reduce"  . }}
+}
+
+func BBB_MUL_ARM_NOCARRY_1(z,x,y *Element) {
+	{{ template "MUL_ARM_NOCARRY_1" dict "all" . "V1" "x" "V2" "y"}}
+}
+
+func BBB_MUL_ARM_NOCARRY_2(z,x,y *Element) {
+	{{ template "MUL_ARM_NOCARRY_2" dict "all" . "V1" "x" "V2" "y"}}
+}
+
+
+func BenchmarkBBB_MUL_NOCARRY(b *testing.B) {
+	x := {{.ElementName}}{
+		{{- range $i := .RSquare}}
+		{{$i}},{{end}}
+	}
+	var y {{.ElementName}}
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BBB_MUL_NOCARRY(&x, &x, &y)
+	}
+	benchRes{{.ElementName}} = x 
+}
+
+func BenchmarkBBB_MUL_CIOS(b *testing.B) {
+	x := {{.ElementName}}{
+		{{- range $i := .RSquare}}
+		{{$i}},{{end}}
+	}
+	var y {{.ElementName}}
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BBB_MUL_CIOS(&x, &x, &y)
+	}
+	benchRes{{.ElementName}} = x 
+}
+
+func BenchmarkBBB_MUL_ARM_NOCARRY_1(b *testing.B) {
+	x := {{.ElementName}}{
+		{{- range $i := .RSquare}}
+		{{$i}},{{end}}
+	}
+	var y {{.ElementName}}
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BBB_MUL_ARM_NOCARRY_1(&x, &x, &y)
+	}
+	benchRes{{.ElementName}} = x 
+}
+
+func BenchmarkBBB_MUL_ARM_NOCARRY_2(b *testing.B) {
+	x := {{.ElementName}}{
+		{{- range $i := .RSquare}}
+		{{$i}},{{end}}
+	}
+	var y {{.ElementName}}
+	y.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BBB_MUL_ARM_NOCARRY_2(&x, &x, &y)
+	}
+	benchRes{{.ElementName}} = x 
+}
+
 {{- end}}
 
 `

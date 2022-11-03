@@ -34,6 +34,7 @@ func GenerateFF(F *field.FieldConfig, outputDir string) error {
 		element.Conv,
 		element.MulCIOS,
 		element.MulNoCarry,
+		element.SquareNoCarry,
 		element.Sqrt,
 		element.Inverse,
 		element.BigNum,
@@ -43,6 +44,7 @@ func GenerateFF(F *field.FieldConfig, outputDir string) error {
 	testFiles := []string{
 		element.MulCIOS,
 		element.MulNoCarry,
+		element.SquareNoCarry,
 		element.Reduce,
 		element.Test,
 		element.InverseTests,
@@ -108,8 +110,49 @@ func GenerateFF(F *field.FieldConfig, outputDir string) error {
 		return err
 	}
 
+	{
+		// we generate element_mul.go
+		src := []string{
+			element.Mul,
+			element.MulDoc,
+			element.MulCIOS,
+			element.MulNoCarry,
+			element.SquareNoCarry,
+			element.Reduce,
+		}
+		opts := bavardOpts
+		if F.ASM {
+			opts = withBuildTag(opts, "!amd64,!arm64")
+		}
+		pathSrc := filepath.Join(outputDir, eName+"_mul.go")
+		if err := bavard.GenerateFromString(pathSrc, src, F, opts...); err != nil {
+			return err
+		}
+	}
+
 	// if we generate assembly code
 	if F.ASM {
+		// we generate element_mul_amd64.go element_mul_arm64.go
+		{
+			// we generate element_mul_arm64.go
+			src := []string{
+				element.Mul,
+				element.MulDoc,
+				element.MulCIOS,
+				element.MulNoCarryARM64,
+				element.Reduce,
+			}
+			if F.NoCarrySquare {
+				src = append(src, element.SquareNoCarryARM64)
+			} else {
+				src = append(src, element.SquareNoCarry)
+			}
+			pathSrc := filepath.Join(outputDir, eName+"_mul_arm64.go")
+			if err := bavard.GenerateFromString(pathSrc, src, F, bavardOpts...); err != nil {
+				return err
+			}
+		}
+
 		// generate ops.s
 		{
 			pathSrc := filepath.Join(outputDir, eName+"_ops_amd64.s")
@@ -187,16 +230,37 @@ func GenerateFF(F *field.FieldConfig, outputDir string) error {
 			}
 		}
 
-	}
-
-	if F.ASM {
-		// generate ops_amd64.go
-		src := []string{
-			element.OpsAMD64,
+		{
+			// generate ops_amd64.go
+			src := []string{
+				element.OpsAMD64,
+			}
+			pathSrc := filepath.Join(outputDir, eName+"_ops_amd64.go")
+			if err := bavard.GenerateFromString(pathSrc, src, F, bavardOpts...); err != nil {
+				return err
+			}
 		}
-		pathSrc := filepath.Join(outputDir, eName+"_ops_amd64.go")
-		if err := bavard.GenerateFromString(pathSrc, src, F, bavardOpts...); err != nil {
-			return err
+
+		{
+			// generate asm.go and asm_noadx.go
+			src := []string{
+				element.Asm,
+			}
+			pathSrc := filepath.Join(outputDir, "asm.go")
+			if err := bavard.GenerateFromString(pathSrc, src, F, withBuildTag(bavardOpts, "!noadx")...); err != nil {
+				return err
+			}
+		}
+
+		{
+			// generate asm.go and asm_noadx.go
+			src := []string{
+				element.AsmNoAdx,
+			}
+			pathSrc := filepath.Join(outputDir, "asm_noadx.go")
+			if err := bavard.GenerateFromString(pathSrc, src, F, withBuildTag(bavardOpts, "noadx")...); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -206,6 +270,7 @@ func GenerateFF(F *field.FieldConfig, outputDir string) error {
 			element.OpsNoAsm,
 			element.MulCIOS,
 			element.MulNoCarry,
+			element.SquareNoCarry,
 			element.Reduce,
 		}
 		pathSrc := filepath.Join(outputDir, eName+"_ops_noasm.go")
@@ -230,33 +295,6 @@ func GenerateFF(F *field.FieldConfig, outputDir string) error {
 		}
 	}
 
-	if F.ASM {
-		// generate asm.go and asm_noadx.go
-		src := []string{
-			element.Asm,
-		}
-		pathSrc := filepath.Join(outputDir, "asm.go")
-		bavardOptsCpy := make([]func(*bavard.Bavard) error, len(bavardOpts))
-		copy(bavardOptsCpy, bavardOpts)
-		bavardOptsCpy = append(bavardOptsCpy, bavard.BuildTag("!noadx"))
-		if err := bavard.GenerateFromString(pathSrc, src, F, bavardOptsCpy...); err != nil {
-			return err
-		}
-	}
-	if F.ASM {
-		// generate asm.go and asm_noadx.go
-		src := []string{
-			element.AsmNoAdx,
-		}
-		pathSrc := filepath.Join(outputDir, "asm_noadx.go")
-		bavardOptsCpy := make([]func(*bavard.Bavard) error, len(bavardOpts))
-		copy(bavardOptsCpy, bavardOpts)
-		bavardOptsCpy = append(bavardOptsCpy, bavard.BuildTag("noadx"))
-		if err := bavard.GenerateFromString(pathSrc, src, F, bavardOptsCpy...); err != nil {
-			return err
-		}
-	}
-
 	// run go fmt on whole directory
 	cmd := exec.Command("gofmt", "-s", "-w", outputDir)
 	cmd.Stdout = os.Stdout
@@ -274,4 +312,11 @@ func shorten(input string) string {
 		return input[:6] + "..." + input[len(input)-6:]
 	}
 	return input
+}
+
+func withBuildTag(bavardOpts []func(*bavard.Bavard) error, buildTag string) []func(*bavard.Bavard) error {
+	bavardOptsCpy := make([]func(*bavard.Bavard) error, len(bavardOpts))
+	copy(bavardOptsCpy, bavardOpts)
+	bavardOptsCpy = append(bavardOptsCpy, bavard.BuildTag(buildTag))
+	return bavardOptsCpy
 }

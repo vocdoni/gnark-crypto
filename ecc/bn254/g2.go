@@ -55,13 +55,6 @@ func (p *G2Affine) Set(a *G2Affine) *G2Affine {
 	return p
 }
 
-// setInfinity sets p to O
-func (p *G2Affine) setInfinity() *G2Affine {
-	p.X.SetZero()
-	p.Y.SetZero()
-	return p
-}
-
 // ScalarMultiplication computes and returns p = a ⋅ s
 func (p *G2Affine) ScalarMultiplication(a *G2Affine, s *big.Int) *G2Affine {
 	var _p G2Jac
@@ -377,22 +370,15 @@ func (p *G2Jac) IsOnCurve() bool {
 }
 
 // IsInSubGroup returns true if p is on the r-torsion, false otherwise.
-// https://eprint.iacr.org/2022/348.pdf, sec. 3 and 5.1
-// [r]P == 0 <==> [x₀+1]P + ψ([x₀]P) + ψ²([x₀]P) = ψ³([2x₀]P)
+// [r]P == 0 <==> Frob(P) == [6x²]P
 func (p *G2Jac) IsInSubGroup() bool {
-	var a, b, c, res G2Jac
-	a.ScalarMultiplication(p, &xGen)
-	b.psi(&a)
-	a.AddAssign(p)
-	res.psi(&b)
-	c.Set(&res).
-		AddAssign(&b).
-		AddAssign(&a)
-	res.psi(&res).
-		Double(&res).
-		SubAssign(&c)
+	var a, res G2Jac
+	a.psi(p)
+	res.ScalarMultiplication(p, &fixedCoeff).
+		SubAssign(&a)
 
 	return res.IsOnCurve() && res.Z.IsZero()
+
 }
 
 // mulWindowed computes a 2-bits windowed scalar multiplication
@@ -613,15 +599,15 @@ func (p *g2JacExtended) add(q *g2JacExtended) *g2JacExtended {
 		return p
 	}
 
-	var A, B, U1, U2, S1, S2 fptower.E2
+	var A, B, X1ZZ2, X2ZZ1, Y1ZZZ2, Y2ZZZ1 fptower.E2
 
 	// p2: q, p1: p
-	U2.Mul(&q.X, &p.ZZ)
-	U1.Mul(&p.X, &q.ZZ)
-	A.Sub(&U2, &U1)
-	S2.Mul(&q.Y, &p.ZZZ)
-	S1.Mul(&p.Y, &q.ZZZ)
-	B.Sub(&S2, &S1)
+	X2ZZ1.Mul(&q.X, &p.ZZ)
+	X1ZZ2.Mul(&p.X, &q.ZZ)
+	A.Sub(&X2ZZ1, &X1ZZ2)
+	Y2ZZZ1.Mul(&q.Y, &p.ZZZ)
+	Y1ZZZ2.Mul(&p.Y, &q.ZZZ)
+	B.Sub(&Y2ZZZ1, &Y1ZZZ2)
 
 	if A.IsZero() {
 		if B.IsZero() {
@@ -633,7 +619,11 @@ func (p *g2JacExtended) add(q *g2JacExtended) *g2JacExtended {
 		return p
 	}
 
-	var P, R, PP, PPP, Q, V fptower.E2
+	var U1, U2, S1, S2, P, R, PP, PPP, Q, V fptower.E2
+	U1.Mul(&p.X, &q.ZZ)
+	U2.Mul(&q.X, &p.ZZ)
+	S1.Mul(&p.Y, &q.ZZZ)
+	S2.Mul(&q.Y, &p.ZZZ)
 	P.Sub(&U2, &U1)
 	R.Sub(&S2, &S1)
 	PP.Square(&P)

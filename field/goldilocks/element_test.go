@@ -318,6 +318,12 @@ func init() {
 		staticTestValues = append(staticTestValues, a)
 	}
 
+	for _, sv := range staticTestValues {
+		if !sv.smallerThanModulus() {
+			panic("invalid static test value") // shouldn't happen.
+		}
+	}
+
 }
 
 func TestElementReduce(t *testing.T) {
@@ -936,7 +942,7 @@ func TestElementMul(t *testing.T) {
 
 				// checking generic impl against asm path
 				var cGeneric Element
-				_mulGeneric(&cGeneric, &a.element, &r)
+				cGeneric._mulGeneric(&a.element, &r)
 				if !cGeneric.Equal(&c) {
 					// need to give context to failing error.
 					return false
@@ -968,7 +974,7 @@ func TestElementMul(t *testing.T) {
 		func(a, b testPairElement) bool {
 			var c, d Element
 			c.Mul(&a.element, &b.element)
-			_mulGeneric(&d, &a.element, &b.element)
+			d._mulGeneric(&a.element, &b.element)
 			return c.Equal(&d)
 		},
 		genA,
@@ -994,7 +1000,7 @@ func TestElementMul(t *testing.T) {
 
 				// checking asm against generic impl
 				var cGeneric Element
-				_mulGeneric(&cGeneric, &a, &b)
+				cGeneric._mulGeneric(&a, &b)
 				if !cGeneric.Equal(&c) {
 					t.Fatal("Mul failed special test values: asm and generic impl don't match")
 				}
@@ -2238,3 +2244,5 @@ func genFull() gopter.Gen {
 		return genResult
 	}
 }
+
+// TEMPORARY SECTION FOR BENCHMARKS --

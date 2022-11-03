@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -21,7 +21,7 @@ func main() {
 	// quick and dirty helper to benchmark field elements accross branches
 
 	var entries []entry
-	err := filepath.WalkDir("../../ecc", func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir("../../ecc/bn254", func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
 			if d.Name() == "fp" || d.Name() == "fr" {
 				entries = append(entries, entry{entry: d, path: path})
@@ -35,17 +35,17 @@ func main() {
 	}
 
 	const benchCount = 10
-	const regexp = "ElementSqrt"
+	const regexp = "BBB"
 	const refBranch = "developt"
 	const newBranch = "feat-addchain"
 
 	var buf bytes.Buffer
 	runBenches := func(branch string) {
-		checkout(branch)
+		// checkout(branch)
 		for _, e := range entries {
 			buf.Reset()
 			count := strconv.Itoa(benchCount)
-			cmd := exec.Command("go", "test", "-timeout", "10m", "-run", "^$", "-bench", regexp, "-count", count, "-tags", "amd64_adx")
+			cmd := exec.Command("go", "test", "-timeout", "10m", "-run", "^$", "-bench", regexp, "-count", count)
 			args := strings.Join(cmd.Args, " ")
 			log.Println("running benchmark", "dir", e.path, "cmd", args)
 			cmd.Dir = e.path
@@ -61,25 +61,28 @@ func main() {
 			if err := os.WriteFile(filepath.Join(e.path, branch+".txt"), buf.Bytes(), 0600); err != nil {
 				log.Fatal(err)
 			}
+			io.Copy(os.Stdout, &buf)
 		}
 	}
 
-	runBenches(refBranch)
-	runBenches(newBranch)
+	runBenches("BBB")
 
-	for _, e := range entries {
-		fmt.Println()
-		log.Println("comparing", e.path, regexp)
-		cmd := exec.Command("benchstat", "-alpha", "2.0", refBranch+".txt", newBranch+".txt")
-		cmd.Dir = e.path
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println()
-	}
+	// runBenches(refBranch)
+	// runBenches(newBranch)
+
+	// for _, e := range entries {
+	// 	fmt.Println()
+	// 	log.Println("comparing", e.path, regexp)
+	// 	cmd := exec.Command("benchstat", "-alpha", "2.0", refBranch+".txt", newBranch+".txt")
+	// 	cmd.Dir = e.path
+	// 	cmd.Stdout = os.Stdout
+	// 	cmd.Stderr = os.Stderr
+	// 	err := cmd.Run()
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	fmt.Println()
+	// }
 }
 
 func checkout(branch string) {
