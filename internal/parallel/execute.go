@@ -5,8 +5,16 @@ import (
 	"sync"
 )
 
-// Execute process in parallel the work function
+// Execute processes the work function sequentially
 func Execute(nbIterations int, work func(int, int), maxCpus ...int) {
+	// Remove the parallelization and run the work function in a single loop
+	for i := 0; i < nbIterations; i++ {
+		work(i, i+1)
+	}
+}
+
+// ExecuteParallel process in parallel the work function
+func ExecuteParallel(nbIterations int, work func(int, int), maxCpus ...int) {
 
 	nbTasks := runtime.NumCPU()
 	if len(maxCpus) == 1 {

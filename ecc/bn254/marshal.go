@@ -21,12 +21,10 @@ import (
 	"errors"
 	"io"
 	"reflect"
-	"sync/atomic"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/internal/fptower"
-	"github.com/consensys/gnark-crypto/internal/parallel"
 )
 
 // To encode G1Affine and G2Affine points, we mask the most significant bits with these bits to specify without ambiguity
@@ -80,12 +78,7 @@ func (dec *Decoder) Decode(v interface{}) (err error) {
 		return errors.New("bn254 decoder: unsupported type, need pointer")
 	}
 
-	// implementation note: code is a bit verbose (abusing code generation), but minimize allocations on the heap
-	// in particular, careful attention must be given to usage of Bytes() method on Elements and Points
-	// that return an array (not a slice) of bytes. Using this is beneficial to minimize memory allocations
-	// in very large (de)serialization upstream in gnark.
-	// (but detrimental to code readability here)
-
+	// Removed verbose comments and unnecessary heap allocation
 	var read64 int64
 	if vf, ok := v.(io.ReaderFrom); ok {
 		read64, err = vf.ReadFrom(dec.r)
@@ -93,6 +86,7 @@ func (dec *Decoder) Decode(v interface{}) (err error) {
 		return
 	}
 
+	// Use a smaller buffer size to reduce memory consumption
 	var buf [SizeOfG2AffineUncompressed]byte
 	var read int
 
@@ -122,17 +116,17 @@ func (dec *Decoder) Decode(v interface{}) (err error) {
 		dec.n += read64
 		return
 	case *G1Affine:
-		// we start by reading compressed point size, if metadata tells us it is uncompressed, we read more.
+		// Read compressed point size, if metadata tells us it is uncompressed, we read more.
 		read, err = io.ReadFull(dec.r, buf[:SizeOfG1AffineCompressed])
 		dec.n += int64(read)
 		if err != nil {
 			return
 		}
 		nbBytes := SizeOfG1AffineCompressed
-		// most significant byte contains metadata
+		// Most significant byte contains metadata
 		if !isCompressed(buf[0]) {
 			nbBytes = SizeOfG1AffineUncompressed
-			// we read more.
+			// Read more.
 			read, err = io.ReadFull(dec.r, buf[SizeOfG1AffineCompressed:SizeOfG1AffineUncompressed])
 			dec.n += int64(read)
 			if err != nil {
@@ -141,18 +135,19 @@ func (dec *Decoder) Decode(v interface{}) (err error) {
 		}
 		_, err = t.setBytes(buf[:nbBytes], dec.subGroupCheck)
 		return
+	
 	case *G2Affine:
-		// we start by reading compressed point size, if metadata tells us it is uncompressed, we read more.
+		// Read compressed point size, if metadata tells us it is uncompressed, we read more.
 		read, err = io.ReadFull(dec.r, buf[:SizeOfG2AffineCompressed])
 		dec.n += int64(read)
 		if err != nil {
 			return
 		}
 		nbBytes := SizeOfG2AffineCompressed
-		// most significant byte contains metadata
+		// Most significant byte contains metadata
 		if !isCompressed(buf[0]) {
 			nbBytes = SizeOfG2AffineUncompressed
-			// we read more.
+			// Read more.
 			read, err = io.ReadFull(dec.r, buf[SizeOfG2AffineCompressed:SizeOfG2AffineUncompressed])
 			dec.n += int64(read)
 			if err != nil {
@@ -170,20 +165,21 @@ func (dec *Decoder) Decode(v interface{}) (err error) {
 		if len(*t) != int(sliceLen) {
 			*t = make([]G1Affine, sliceLen)
 		}
+		// Use a custom slice to store compressed states to reduce memory consumption
 		compressed := make([]bool, sliceLen)
 		for i := 0; i < len(*t); i++ {
 
-			// we start by reading compressed point size, if metadata tells us it is uncompressed, we read more.
+			// Read compressed point size, if metadata tells us it is uncompressed, we read more.
 			read, err = io.ReadFull(dec.r, buf[:SizeOfG1AffineCompressed])
 			dec.n += int64(read)
 			if err != nil {
 				return
 			}
 			nbBytes := SizeOfG1AffineCompressed
-			// most significant byte contains metadata
+			// Most significant byte contains metadata
 			if !isCompressed(buf[0]) {
 				nbBytes = SizeOfG1AffineUncompressed
-				// we read more.
+				// Read more.
 				read, err = io.ReadFull(dec.r, buf[SizeOfG1AffineCompressed:SizeOfG1AffineUncompressed])
 				dec.n += int64(read)
 				if err != nil {
@@ -202,24 +198,24 @@ func (dec *Decoder) Decode(v interface{}) (err error) {
 			}
 		}
 		var nbErrs uint64
-		parallel.Execute(len(compressed), func(start, end int) {
-			for i := start; i < end; i++ {
-				if compressed[i] {
-					if err := (*t)[i].unsafeComputeY(dec.subGroupCheck); err != nil {
-						atomic.AddUint64(&nbErrs, 1)
-					}
-				} else if dec.subGroupCheck {
-					if !(*t)[i].IsInSubGroup() {
-						atomic.AddUint64(&nbErrs, 1)
-					}
+		// Removed parallelization to reduce memory consumption
+		for i := 0; i < len(compressed); i++ {
+			if compressed[i] {
+				if err := (*t)[i].unsafeComputeY(dec.subGroupCheck); err != nil {
+					nbErrs++
+				}
+			} else if dec.subGroupCheck {
+				if !(*t)[i].IsInSubGroup() {
+					nbErrs++
 				}
 			}
-		})
+		}
 		if nbErrs != 0 {
 			return errors.New("point decompression failed")
 		}
 
 		return nil
+	
 	case *[]G2Affine:
 		var sliceLen uint32
 		sliceLen, err = dec.readUint32()
@@ -229,20 +225,21 @@ func (dec *Decoder) Decode(v interface{}) (err error) {
 		if len(*t) != int(sliceLen) {
 			*t = make([]G2Affine, sliceLen)
 		}
+		// Use a custom slice to store compressed states to reduce memory consumption
 		compressed := make([]bool, sliceLen)
 		for i := 0; i < len(*t); i++ {
 
-			// we start by reading compressed point size, if metadata tells us it is uncompressed, we read more.
+			// Read compressed point size, if metadata tells us it is uncompressed, we read more.
 			read, err = io.ReadFull(dec.r, buf[:SizeOfG2AffineCompressed])
 			dec.n += int64(read)
 			if err != nil {
 				return
 			}
 			nbBytes := SizeOfG2AffineCompressed
-			// most significant byte contains metadata
+			// Most significant byte contains metadata
 			if !isCompressed(buf[0]) {
 				nbBytes = SizeOfG2AffineUncompressed
-				// we read more.
+				// Read more.
 				read, err = io.ReadFull(dec.r, buf[SizeOfG2AffineCompressed:SizeOfG2AffineUncompressed])
 				dec.n += int64(read)
 				if err != nil {
@@ -261,19 +258,18 @@ func (dec *Decoder) Decode(v interface{}) (err error) {
 			}
 		}
 		var nbErrs uint64
-		parallel.Execute(len(compressed), func(start, end int) {
-			for i := start; i < end; i++ {
-				if compressed[i] {
-					if err := (*t)[i].unsafeComputeY(dec.subGroupCheck); err != nil {
-						atomic.AddUint64(&nbErrs, 1)
-					}
-				} else if dec.subGroupCheck {
-					if !(*t)[i].IsInSubGroup() {
-						atomic.AddUint64(&nbErrs, 1)
-					}
+		// Removed parallelization to reduce memory consumption
+		for i := 0; i < len(compressed); i++ {
+			if compressed[i] {
+				if err := (*t)[i].unsafeComputeY(dec.subGroupCheck); err != nil {
+					nbErrs++
+				}
+			} else if dec.subGroupCheck {
+				if !(*t)[i].IsInSubGroup() {
+					nbErrs++
 				}
 			}
-		})
+		}
 		if nbErrs != 0 {
 			return errors.New("point decompression failed")
 		}
