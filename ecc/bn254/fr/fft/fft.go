@@ -169,7 +169,7 @@ func difFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDon
 	nextStage := stage + 1
 	if stage < maxSplits {
 		chDone := make(chan struct{}, 1)
-		go difFFT(a[m:n], twiddles, nextStage, maxSplits, chDone, nbTasks)
+		difFFT(a[m:n], twiddles, nextStage, maxSplits, chDone, nbTasks)
 		difFFT(a[0:m], twiddles, nextStage, maxSplits, nil, nbTasks)
 		<-chDone
 	} else {
@@ -197,7 +197,7 @@ func ditFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDon
 	if stage < maxSplits {
 		// that's the only time we fire go routines
 		chDone := make(chan struct{}, 1)
-		go ditFFT(a[m:], twiddles, nextStage, maxSplits, chDone, nbTasks)
+		ditFFT(a[m:], twiddles, nextStage, maxSplits, chDone, nbTasks)
 		ditFFT(a[0:m], twiddles, nextStage, maxSplits, nil, nbTasks)
 		<-chDone
 	} else {

@@ -132,13 +132,13 @@ func (d *Domain) preComputeTwiddles() {
 	// nb fft stages
 	nbStages := uint64(bits.TrailingZeros64(d.Cardinality))
 
+	fmt.Println("allocating twiddles")
 	d.Twiddles = make([][]fr.Element, nbStages)
 	d.TwiddlesInv = make([][]fr.Element, nbStages)
 	d.CosetTable = make([]fr.Element, d.Cardinality)
 	d.CosetTableInv = make([]fr.Element, d.Cardinality)
 
-	var wg sync.WaitGroup
-
+	fmt.Println("computing twiddles")
 	// for each fft stage, we pre compute the twiddle factors
 	twiddles := func(t [][]fr.Element, omega fr.Element) {
 		for i := uint64(0); i < nbStages; i++ {
@@ -155,22 +155,20 @@ func (d *Domain) preComputeTwiddles() {
 				t[i][j].Mul(&t[i][j-1], &w)
 			}
 		}
-		wg.Done()
 	}
 
+	fmt.Println("precomputing exp tables")
 	expTable := func(sqrt fr.Element, t []fr.Element) {
 		t[0] = fr.One()
 		precomputeExpTable(sqrt, t)
-		wg.Done()
 	}
 
-	wg.Add(4)
-	go twiddles(d.Twiddles, d.Generator)
-	go twiddles(d.TwiddlesInv, d.GeneratorInv)
-	go expTable(d.FrMultiplicativeGen, d.CosetTable)
-	go expTable(d.FrMultiplicativeGenInv, d.CosetTableInv)
+	fmt.Println("executing wtiddles")
+	 twiddles(d.Twiddles, d.Generator)
+	 twiddles(d.TwiddlesInv, d.GeneratorInv)
+	 expTable(d.FrMultiplicativeGen, d.CosetTable)
+	 expTable(d.FrMultiplicativeGenInv, d.CosetTableInv)
 
-	wg.Wait()
 
 }
 
@@ -238,22 +236,28 @@ func (d *Domain) WriteTo(w io.Writer) (int64, error) {
 
 // ReadFrom attempts to decode a domain from Reader
 func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
-
+	fmt.Println("read from")
 	dec := curve.NewDecoder(r)
 
+	fmt.Println("toDecode")
 	toDecode := []interface{}{&d.Cardinality, &d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.FrMultiplicativeGen, &d.FrMultiplicativeGenInv}
 
+	fmt.Println("to decode start")
 	for _, v := range toDecode {
+		fmt.Printf("decode %T\n", v)
 		if err := dec.Decode(v); err != nil {
 			return dec.BytesRead(), err
 		}
 	}
 
+	fmt.Println("twiddles")
 	// twiddle factors
 	d.preComputeTwiddles()
 
+	fmt.Println("reverse coset")
 	// store the bit reversed coset tables if needed
 	d.reverseCosetTables()
 
+	fmt.Println("done")
 	return dec.BytesRead(), nil
 }

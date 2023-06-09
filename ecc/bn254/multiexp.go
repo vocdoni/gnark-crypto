@@ -40,91 +40,22 @@ func (p *G1Affine) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.
 // MultiExp implements section 4 of https://eprint.iacr.org/2012/549.pdf
 //
 // This call return an error if len(scalars) != len(points) or if provided config is invalid.
+// This methods has been modified to remove concurrency.
 func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.MultiExpConfig) (*G1Jac, error) {
-	// note:
-	// each of the msmCX method is the same, except for the c constant it declares
-	// duplicating (through template generation) these methods allows to declare the buckets on the stack
-	// the choice of c needs to be improved:
-	// there is a theoritical value that gives optimal asymptotics
-	// but in practice, other factors come into play, including:
-	// * if c doesn't divide 64, the word size, then we're bound to select bits over 2 words of our scalars, instead of 1
-	// * number of CPUs
-	// * cache friendliness (which depends on the host, G1 or G2... )
-	//	--> for example, on BN254, a G1 point fits into one cache line of 64bytes, but a G2 point don't.
-
-	// for each msmCX
-	// step 1
-	// we compute, for each scalars over c-bit wide windows, nbChunk digits
-	// if the digit is larger than 2^{c-1}, then, we borrow 2^c from the next window and substract
-	// 2^{c} to the current digit, making it negative.
-	// negative digits will be processed in the next step as adding -G into the bucket instead of G
-	// (computing -G is cheap, and this saves us half of the buckets)
-	// step 2
-	// buckets are declared on the stack
-	// notice that we have 2^{c-1} buckets instead of 2^{c} (see step1)
-	// we use jacobian extended formulas here as they are faster than mixed addition
-	// msmProcessChunk places points into buckets base on their selector and return the weighted bucket sum in given channel
-	// step 3
-	// reduce the buckets weigthed sums into our result (msmReduceChunk)
-
-	// ensure len(points) == len(scalars)
 	nbPoints := len(points)
 	if nbPoints != len(scalars) {
 		return nil, errors.New("len(points) != len(scalars)")
 	}
 
-	// if nbTasks is not set, use all available CPUs
-	if config.NbTasks <= 0 {
-		config.NbTasks = runtime.NumCPU()
-	} else if config.NbTasks > 1024 {
-		return nil, errors.New("invalid config: config.NbTasks > 1024")
-	}
-
-	// here, we compute the best C for nbPoints
-	// we split recursively until nbChunks(c) >= nbTasks,
-	bestC := func(nbPoints int) uint64 {
-		// implemented msmC methods (the c we use must be in this slice)
-		implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-		var C uint64
-		// approximate cost (in group operations)
-		// cost = bits/c * (nbPoints + 2^{c})
-		// this needs to be verified empirically.
-		// for example, on a MBP 2016, for G2 MultiExp > 8M points, hand picking c gives better results
-		min := math.MaxFloat64
-		for _, c := range implementedCs {
-			cc := (fr.Bits + 1) * (nbPoints + (1 << c))
-			cost := float64(cc) / float64(c)
-			if cost < min {
-				min = cost
-				C = c
-			}
-		}
-		return C
-	}
-
-	C := bestC(nbPoints)
-	nbChunks := int(computeNbChunks(C))
-
-	// if we don't utilise all the tasks (CPU in the default case) that we could, let's see if it's worth it to split
-	if config.NbTasks > 1 && nbChunks < config.NbTasks {
-		// before spliting, let's see if we endup with more tasks than thread;
-		cSplit := bestC(nbPoints / 2)
-		nbChunksPostSplit := int(computeNbChunks(cSplit))
-		nbTasksPostSplit := nbChunksPostSplit * 2
-		if (nbTasksPostSplit <= config.NbTasks/2) || (nbTasksPostSplit-config.NbTasks/2) <= (config.NbTasks-nbChunks) {
-			// if postSplit we still have less tasks than available CPU
-			// or if we have more tasks BUT the difference of CPU usage is in our favor, we split.
-			config.NbTasks /= 2
-			var _p G1Jac
-			chDone := make(chan struct{}, 1)
-			go func() {
-				_p.MultiExp(points[:nbPoints/2], scalars[:nbPoints/2], config)
-				close(chDone)
-			}()
-			p.MultiExp(points[nbPoints/2:], scalars[nbPoints/2:], config)
-			<-chDone
-			p.AddAssign(&_p)
-			return p, nil
+	implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	var C uint64
+	min := math.MaxFloat64
+	for _, c := range implementedCs {
+		cc := (fr.Bits + 1) * (nbPoints + (1 << c))
+		cost := float64(cc) / float64(c)
+		if cost < min {
+			min = cost
+			C = c
 		}
 	}
 
@@ -134,48 +65,45 @@ func (p *G1Jac) MultiExp(points []G1Affine, scalars []fr.Element, config ecc.Mul
 }
 
 func _innerMsmG1(p *G1Jac, c uint64, points []G1Affine, scalars []fr.Element, config ecc.MultiExpConfig) *G1Jac {
-	// partition the scalars
-	digits, chunkStats := partitionScalars(scalars, c, config.NbTasks)
+    // partition the scalars
+    digits, chunkStats := partitionScalars(scalars, c, config.NbTasks)
 
-	nbChunks := computeNbChunks(c)
+    nbChunks := computeNbChunks(c)
 
-	// for each chunk, spawn one go routine that'll loop through all the scalars in the
-	// corresponding bit-window
-	// note that buckets is an array allocated on the stack and this is critical for performance
+    // the last chunk may be processed with a different method than the rest, as it could be smaller.
+    n := len(points)
+    chunks := make([]g1JacExtended, nbChunks)
+    for j := int(nbChunks - 1); j >= 0; j-- {
+        processChunk := getChunkProcessorG1(c, chunkStats[j])
+        if j == int(nbChunks-1) {
+            processChunk = getChunkProcessorG1(lastC(c), chunkStats[j])
+        }
+        if chunkStats[j].weight >= 115 {
+            // we split this in more go routines since this chunk has more work to do than the others.
+            // else what would happen is this go routine would finish much later than the others.
+            chSplit := make(chan g1JacExtended, 2)
+            split := n / 2
+            processChunk(uint64(j), chSplit, c, points[:split], digits[j*n:(j*n)+split])
+            processChunk(uint64(j), chSplit, c, points[split:], digits[(j*n)+split:(j+1)*n])
+            s1 := <-chSplit
+            s2 := <-chSplit
+            s1.add(&s2)
+            chunks[j] = s1
+            continue
+        }
+        ch := make(chan g1JacExtended, 1)
+        processChunk(uint64(j), ch, c, points, digits[j*n:(j+1)*n])
+        chunks[j] = <-ch
+    }
 
-	// each go routine sends its result in chChunks[i] channel
-	chChunks := make([]chan g1JacExtended, nbChunks)
-	for i := 0; i < len(chChunks); i++ {
-		chChunks[i] = make(chan g1JacExtended, 1)
-	}
+    // Create channels and push the results into them just before calling msmReduceChunkG1Affine
+    chChunks := make([]chan g1JacExtended, nbChunks)
+    for i, chunk := range chunks {
+        chChunks[i] = make(chan g1JacExtended, 1)
+        chChunks[i] <- chunk
+    }
 
-	// the last chunk may be processed with a different method than the rest, as it could be smaller.
-	n := len(points)
-	for j := int(nbChunks - 1); j >= 0; j-- {
-		processChunk := getChunkProcessorG1(c, chunkStats[j])
-		if j == int(nbChunks-1) {
-			processChunk = getChunkProcessorG1(lastC(c), chunkStats[j])
-		}
-		if chunkStats[j].weight >= 115 {
-			// we split this in more go routines since this chunk has more work to do than the others.
-			// else what would happen is this go routine would finish much later than the others.
-			chSplit := make(chan g1JacExtended, 2)
-			split := n / 2
-			go processChunk(uint64(j), chSplit, c, points[:split], digits[j*n:(j*n)+split])
-			go processChunk(uint64(j), chSplit, c, points[split:], digits[(j*n)+split:(j+1)*n])
-			go func(chunkID int) {
-				s1 := <-chSplit
-				s2 := <-chSplit
-				close(chSplit)
-				s1.add(&s2)
-				chChunks[chunkID] <- s1
-			}(j)
-			continue
-		}
-		go processChunk(uint64(j), chChunks[j], c, points, digits[j*n:(j+1)*n])
-	}
-
-	return msmReduceChunkG1Affine(p, int(c), chChunks[:])
+    return msmReduceChunkG1Affine(p, int(c), chChunks)
 }
 
 // getChunkProcessorG1 decides, depending on c window size and statistics for the chunk
@@ -296,146 +224,103 @@ func (p *G2Affine) MultiExp(points []G2Affine, scalars []fr.Element, config ecc.
 	return p, nil
 }
 
-// MultiExp implements section 4 of https://eprint.iacr.org/2012/549.pdf
-//
-// This call return an error if len(scalars) != len(points) or if provided config is invalid.
 func (p *G2Jac) MultiExp(points []G2Affine, scalars []fr.Element, config ecc.MultiExpConfig) (*G2Jac, error) {
-	// note:
-	// each of the msmCX method is the same, except for the c constant it declares
-	// duplicating (through template generation) these methods allows to declare the buckets on the stack
-	// the choice of c needs to be improved:
-	// there is a theoritical value that gives optimal asymptotics
-	// but in practice, other factors come into play, including:
-	// * if c doesn't divide 64, the word size, then we're bound to select bits over 2 words of our scalars, instead of 1
-	// * number of CPUs
-	// * cache friendliness (which depends on the host, G1 or G2... )
-	//	--> for example, on BN254, a G1 point fits into one cache line of 64bytes, but a G2 point don't.
+    // ensure len(points) == len(scalars)
+    nbPoints := len(points)
+    if nbPoints != len(scalars) {
+        return nil, errors.New("len(points) != len(scalars)")
+    }
 
-	// for each msmCX
-	// step 1
-	// we compute, for each scalars over c-bit wide windows, nbChunk digits
-	// if the digit is larger than 2^{c-1}, then, we borrow 2^c from the next window and substract
-	// 2^{c} to the current digit, making it negative.
-	// negative digits will be processed in the next step as adding -G into the bucket instead of G
-	// (computing -G is cheap, and this saves us half of the buckets)
-	// step 2
-	// buckets are declared on the stack
-	// notice that we have 2^{c-1} buckets instead of 2^{c} (see step1)
-	// we use jacobian extended formulas here as they are faster than mixed addition
-	// msmProcessChunk places points into buckets base on their selector and return the weighted bucket sum in given channel
-	// step 3
-	// reduce the buckets weigthed sums into our result (msmReduceChunk)
+    // if nbTasks is not set, use all available CPUs
+    if config.NbTasks <= 0 {
+        config.NbTasks = runtime.NumCPU()
+    } else if config.NbTasks > 1024 {
+        return nil, errors.New("invalid config: config.NbTasks > 1024")
+    }
 
-	// ensure len(points) == len(scalars)
-	nbPoints := len(points)
-	if nbPoints != len(scalars) {
-		return nil, errors.New("len(points) != len(scalars)")
-	}
+    // here, we compute the best C for nbPoints
+    bestC := func(nbPoints int) uint64 {
+        implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+        var C uint64
+        min := math.MaxFloat64
+        for _, c := range implementedCs {
+            cc := (fr.Bits + 1) * (nbPoints + (1 << c))
+            cost := float64(cc) / float64(c)
+            if cost < min {
+                min = cost
+                C = c
+            }
+        }
+        return C
+    }
 
-	// if nbTasks is not set, use all available CPUs
-	if config.NbTasks <= 0 {
-		config.NbTasks = runtime.NumCPU()
-	} else if config.NbTasks > 1024 {
-		return nil, errors.New("invalid config: config.NbTasks > 1024")
-	}
+    C := bestC(nbPoints)
+    nbChunks := int(computeNbChunks(C))
 
-	// here, we compute the best C for nbPoints
-	// we split recursively until nbChunks(c) >= nbTasks,
-	bestC := func(nbPoints int) uint64 {
-		// implemented msmC methods (the c we use must be in this slice)
-		implementedCs := []uint64{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-		var C uint64
-		// approximate cost (in group operations)
-		// cost = bits/c * (nbPoints + 2^{c})
-		// this needs to be verified empirically.
-		// for example, on a MBP 2016, for G2 MultiExp > 8M points, hand picking c gives better results
-		min := math.MaxFloat64
-		for _, c := range implementedCs {
-			cc := (fr.Bits + 1) * (nbPoints + (1 << c))
-			cost := float64(cc) / float64(c)
-			if cost < min {
-				min = cost
-				C = c
-			}
-		}
-		return C
-	}
+    // if we don't utilise all the tasks (CPU in the default case) that we could, let's see if it's worth it to split
+    if config.NbTasks > 1 && nbChunks < config.NbTasks {
+        cSplit := bestC(nbPoints / 2)
+        nbChunksPostSplit := int(computeNbChunks(cSplit))
+        nbTasksPostSplit := nbChunksPostSplit * 2
+        if (nbTasksPostSplit <= config.NbTasks/2) || (nbTasksPostSplit-config.NbTasks/2) <= (config.NbTasks-nbChunks) {
+            config.NbTasks /= 2
+            var _p G2Jac
+            _p.MultiExp(points[:nbPoints/2], scalars[:nbPoints/2], config)
+            p.MultiExp(points[nbPoints/2:], scalars[nbPoints/2:], config)
+            p.AddAssign(&_p)
+            return p, nil
+        }
+    }
 
-	C := bestC(nbPoints)
-	nbChunks := int(computeNbChunks(C))
+    _innerMsmG2(p, C, points, scalars, config)
 
-	// if we don't utilise all the tasks (CPU in the default case) that we could, let's see if it's worth it to split
-	if config.NbTasks > 1 && nbChunks < config.NbTasks {
-		// before spliting, let's see if we endup with more tasks than thread;
-		cSplit := bestC(nbPoints / 2)
-		nbChunksPostSplit := int(computeNbChunks(cSplit))
-		nbTasksPostSplit := nbChunksPostSplit * 2
-		if (nbTasksPostSplit <= config.NbTasks/2) || (nbTasksPostSplit-config.NbTasks/2) <= (config.NbTasks-nbChunks) {
-			// if postSplit we still have less tasks than available CPU
-			// or if we have more tasks BUT the difference of CPU usage is in our favor, we split.
-			config.NbTasks /= 2
-			var _p G2Jac
-			chDone := make(chan struct{}, 1)
-			go func() {
-				_p.MultiExp(points[:nbPoints/2], scalars[:nbPoints/2], config)
-				close(chDone)
-			}()
-			p.MultiExp(points[nbPoints/2:], scalars[nbPoints/2:], config)
-			<-chDone
-			p.AddAssign(&_p)
-			return p, nil
-		}
-	}
-
-	_innerMsmG2(p, C, points, scalars, config)
-
-	return p, nil
+    return p, nil
 }
+
 
 func _innerMsmG2(p *G2Jac, c uint64, points []G2Affine, scalars []fr.Element, config ecc.MultiExpConfig) *G2Jac {
-	// partition the scalars
-	digits, chunkStats := partitionScalars(scalars, c, config.NbTasks)
+    // partition the scalars
+    digits, chunkStats := partitionScalars(scalars, c, config.NbTasks)
 
-	nbChunks := computeNbChunks(c)
+    nbChunks := computeNbChunks(c)
 
-	// for each chunk, spawn one go routine that'll loop through all the scalars in the
-	// corresponding bit-window
-	// note that buckets is an array allocated on the stack and this is critical for performance
+    // the last chunk may be processed with a different method than the rest, as it could be smaller.
+    n := len(points)
+    chunks := make([]g2JacExtended, nbChunks)
+    for j := int(nbChunks - 1); j >= 0; j-- {
+        processChunk := getChunkProcessorG2(c, chunkStats[j])
+        if j == int(nbChunks-1) {
+            processChunk = getChunkProcessorG2(lastC(c), chunkStats[j])
+        }
+        if chunkStats[j].weight >= 115 {
+            // we split this in more go routines since this chunk has more work to do than the others.
+            // else what would happen is this go routine would finish much later than the others.
+            chSplit := make(chan g2JacExtended, 2)
+            split := n / 2
+            processChunk(uint64(j), chSplit, c, points[:split], digits[j*n:(j*n)+split])
+            processChunk(uint64(j), chSplit, c, points[split:], digits[(j*n)+split:(j+1)*n])
+            s1 := <-chSplit
+            s2 := <-chSplit
+            s1.add(&s2)
+            chunks[j] = s1
+            continue
+        }
+        ch := make(chan g2JacExtended, 1)
+        processChunk(uint64(j), ch, c, points, digits[j*n:(j+1)*n])
+        chunks[j] = <-ch
+    }
 
-	// each go routine sends its result in chChunks[i] channel
-	chChunks := make([]chan g2JacExtended, nbChunks)
-	for i := 0; i < len(chChunks); i++ {
-		chChunks[i] = make(chan g2JacExtended, 1)
-	}
+    // Create channels and push the results into them just before calling msmReduceChunkG2Affine
+    chChunks := make([]chan g2JacExtended, nbChunks)
+    for i, chunk := range chunks {
+        chChunks[i] = make(chan g2JacExtended, 1)
+        chChunks[i] <- chunk
+    }
 
-	// the last chunk may be processed with a different method than the rest, as it could be smaller.
-	n := len(points)
-	for j := int(nbChunks - 1); j >= 0; j-- {
-		processChunk := getChunkProcessorG2(c, chunkStats[j])
-		if j == int(nbChunks-1) {
-			processChunk = getChunkProcessorG2(lastC(c), chunkStats[j])
-		}
-		if chunkStats[j].weight >= 115 {
-			// we split this in more go routines since this chunk has more work to do than the others.
-			// else what would happen is this go routine would finish much later than the others.
-			chSplit := make(chan g2JacExtended, 2)
-			split := n / 2
-			go processChunk(uint64(j), chSplit, c, points[:split], digits[j*n:(j*n)+split])
-			go processChunk(uint64(j), chSplit, c, points[split:], digits[(j*n)+split:(j+1)*n])
-			go func(chunkID int) {
-				s1 := <-chSplit
-				s2 := <-chSplit
-				close(chSplit)
-				s1.add(&s2)
-				chChunks[chunkID] <- s1
-			}(j)
-			continue
-		}
-		go processChunk(uint64(j), chChunks[j], c, points, digits[j*n:(j+1)*n])
-	}
-
-	return msmReduceChunkG2Affine(p, int(c), chChunks[:])
+    return msmReduceChunkG2Affine(p, int(c), chChunks)
 }
+
+
 
 // getChunkProcessorG2 decides, depending on c window size and statistics for the chunk
 // to return the best algorithm to process the chunk.
